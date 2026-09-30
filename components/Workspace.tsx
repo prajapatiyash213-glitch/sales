@@ -22,8 +22,25 @@ interface Props {
 function StagePill({ stage }: { stage: string }) {
   return <span className="pill"><span className="dot" style={{ background: stageColor(stage) }} />{stage}</span>;
 }
+function statusClass(st: string): string {
+  const clean = (st || '').toLowerCase();
+  if (clean.includes('new')) return 'st-New';
+  if (clean.includes('attempt')) return 'st-Attempted';
+  if (clean.includes('contact')) return 'st-Contacted';
+  if (clean.includes('demo')) return 'st-Demo';
+  if (clean.includes('prospect')) return 'st-Prospect';
+  if (clean.includes('junk')) return 'st-Junk';
+  if (clean.includes('closed lost') || clean.includes('lost')) return 'st-ClosedLost';
+  if (clean.includes('nurture')) return 'st-Nurture';
+  if (clean.includes('opportunity')) return 'st-Opportunity';
+  if (clean.includes('hot')) return 'st-Hot';
+  if (clean.includes('warm')) return 'st-Warm';
+  if (clean.includes('cold')) return 'st-Cold';
+  if (clean.includes('converted') || clean.includes('won')) return 'st-Converted';
+  return 'st-Warm';
+}
 function StatusPill({ status }: { status: string }) {
-  return <span className={`status st-${status}`}>{status}</span>;
+  return <span className={`status ${statusClass(status)}`}>{status}</span>;
 }
 
 export default function Workspace({ leads, loading, error, reload, me, people, isAdmin, initialOwner }: Props) {
@@ -63,9 +80,9 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   }, [scoped, stage, source, status, overdueOnly, q]);
 
   const overdueCount = scoped.filter(isOverdue).length;
-  const inProgressCount = scoped.filter(l => ['Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation'].includes(l.lead_stage)).length;
-  const wonCount = scoped.filter(l => l.lead_stage === 'Won').length;
-  const activeCount = scoped.filter(l => l.lead_status !== 'Dropped').length;
+  const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation'].includes(l.lead_stage)).length;
+  const wonCount = scoped.filter(l => ['Closed Won', 'Client', 'Won'].includes(l.lead_stage)).length;
+  const activeCount = scoped.filter(l => !['Closed Lost', 'Lost'].includes(l.lead_stage) && !['Junk Lead', 'Closed Lost', 'Dropped'].includes(l.lead_status)).length;
   const winRate = scoped.length ? Math.round((wonCount / scoped.length) * 100) : 0;
   const sources = [...new Set([...SOURCES, ...leads.map(l => l.lead_source)])];
 

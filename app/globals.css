@@ -16,13 +16,15 @@
   --radius: 16px;
   --shadow: 0 4px 20px -2px rgba(148, 163, 184, 0.12), 0 2px 6px -1px rgba(148, 163, 184, 0.08);
 
-  --s-new: #64748B;
-  --s-contacted: #0EA5E9;
-  --s-meeting: #6366F1;
+  --s-discovery: #64748B;
+  --s-qualified: #0EA5E9;
+  --s-opportunity: #3B82F6;
+  --s-pilot: #6366F1;
   --s-proposal: #F59E0B;
   --s-nego: #EC4899;
-  --s-won: #10B981;
   --s-lost: #94A3B8;
+  --s-won: #10B981;
+  --s-client: #059669;
 
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
@@ -653,30 +655,20 @@ tbody tr:last-child td {
   white-space: nowrap;
 }
 
-.st-Hot {
-  background: #FFE4EC;
-  color: #E11D48;
-}
-
-.st-Warm {
-  background: #FEF3C7;
-  color: #B45309;
-}
-
-.st-Cold {
-  background: #E0F2FE;
-  color: #0369A1;
-}
-
-.st-Converted {
-  background: #DCFCE7;
-  color: #15803D;
-}
-
-.st-Dropped {
-  background: #F1F5F9;
-  color: #64748B;
-}
+.st-New { background: #E0F2FE; color: #0369A1; }
+.st-Attempted { background: #FEF3C7; color: #B45309; }
+.st-Contacted { background: #E0E7FF; color: #4338CA; }
+.st-Demo { background: #F3E8FF; color: #6B21A8; }
+.st-Prospect { background: #FCE7F3; color: #9D174D; }
+.st-Junk { background: #F1F5F9; color: #64748B; }
+.st-ClosedLost { background: #FFE4E6; color: #BE123C; }
+.st-Nurture { background: #FEF9C3; color: #854D0E; }
+.st-Opportunity { background: #DCFCE7; color: #15803D; }
+.st-Hot { background: #FFE4EC; color: #E11D48; }
+.st-Warm { background: #FEF3C7; color: #B45309; }
+.st-Cold { background: #E0F2FE; color: #0369A1; }
+.st-Converted { background: #DCFCE7; color: #15803D; }
+.st-Dropped { background: #F1F5F9; color: #64748B; }
 
 .overdue {
   color: var(--danger);

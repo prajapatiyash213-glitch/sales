@@ -27,32 +27,42 @@ interface ParsedLead {
   followup2_comments?: string;
 }
 
-const VALID_STATUSES = ['Hot', 'Warm', 'Cold', 'Converted', 'Dropped'];
-const VALID_STAGES = ['New', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation', 'Won', 'Lost'];
+import { STATUSES, STAGES } from '@/lib/constants';
+
+const VALID_STATUSES = STATUSES;
+const VALID_STAGES = STAGES.map(s => s.key);
 
 function normalizeStatus(raw: string): string {
-  if (!raw) return 'Warm';
+  if (!raw) return 'New';
   const clean = raw.trim().toLowerCase();
-  if (clean === 'hot' || clean === 'high' || clean === 'urgent') return 'Hot';
-  if (clean === 'cold' || clean === 'low') return 'Cold';
-  if (clean === 'converted' || clean === 'won' || clean === 'closed') return 'Converted';
-  if (clean === 'dropped' || clean === 'lost' || clean === 'dead') return 'Dropped';
   const match = VALID_STATUSES.find(s => s.toLowerCase() === clean);
-  return match ?? 'Warm';
+  if (match) return match;
+  if (clean.includes('attempt')) return 'Attempted to Contact';
+  if (clean.includes('contact')) return 'Contacted';
+  if (clean.includes('demo sched') || clean.includes('meeting sched')) return 'Demo Scheduled';
+  if (clean.includes('prospect') || clean.includes('demo done') || clean.includes('meeting done')) return 'Prospect (Meeting/Demo done)';
+  if (clean.includes('junk') || clean.includes('spam')) return 'Junk Lead';
+  if (clean.includes('closed lost') || clean.includes('lost') || clean.includes('dropped') || clean.includes('dead')) return 'Closed Lost';
+  if (clean.includes('nurture')) return 'Nurture';
+  if (clean.includes('opportunity') || clean.includes('won') || clean.includes('converted')) return 'Opportunity';
+  return 'New';
 }
 
 function normalizeStage(raw: string): string {
-  if (!raw) return 'New';
+  if (!raw) return 'Discovery';
   const clean = raw.trim().toLowerCase();
   const match = VALID_STAGES.find(s => s.toLowerCase() === clean);
   if (match) return match;
-  if (clean.includes('contact')) return 'Contacted';
-  if (clean.includes('meet')) return 'Meeting Scheduled';
-  if (clean.includes('propos')) return 'Proposal Sent';
-  if (clean.includes('nego')) return 'Negotiation';
-  if (clean.includes('won') || clean.includes('close')) return 'Won';
-  if (clean.includes('lost')) return 'Lost';
-  return 'New';
+  if (clean.includes('disco') || clean.includes('new')) return 'Discovery';
+  if (clean.includes('quali')) return 'Qualified';
+  if (clean.includes('opport')) return 'Opportunity';
+  if (clean.includes('pilot') || clean.includes('poc')) return 'Pilot/POC';
+  if (clean.includes('propos')) return 'Proposal';
+  if (clean.includes('nego') || clean.includes('value')) return 'Value Negotiation';
+  if (clean.includes('closed lost') || clean.includes('lost')) return 'Closed Lost';
+  if (clean.includes('closed won') || clean.includes('won')) return 'Closed Won';
+  if (clean.includes('client') || clean.includes('customer')) return 'Client';
+  return 'Discovery';
 }
 
 export default function ImportModal({ open, onClose, me, people, reload }: Props) {

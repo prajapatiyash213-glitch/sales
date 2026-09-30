@@ -62,14 +62,14 @@ create table if not exists public.leads (
   owner_id            uuid not null references public.profiles(id),
   lead_date           date not null default current_date,
   lead_source         text not null,
-  lead_stage          text not null default 'New'
-                      check (lead_stage in ('New','Contacted','Meeting Scheduled','Proposal Sent','Negotiation','Won','Lost')),
+  lead_stage          text not null default 'Discovery'
+                      check (lead_stage in ('Discovery','Qualified','Opportunity','Pilot/POC','Proposal','Value Negotiation','Closed Lost','Closed Won','Client','New','Contacted','Meeting Scheduled','Proposal Sent','Negotiation','Won','Lost')),
   connect_date        date,
   comments            text,
   followup2_date      date,
   followup2_comments  text,
-  lead_status         text not null default 'Warm'
-                      check (lead_status in ('Hot','Warm','Cold','Converted','Dropped')),
+  lead_status         text not null default 'New'
+                      check (lead_status in ('New','Attempted to Contact','Contacted','Demo Scheduled','Prospect (Meeting/Demo done)','Junk Lead','Closed Lost','Nurture','Opportunity','Hot','Warm','Cold','Converted','Dropped')),
   created_by          uuid references public.profiles(id) default auth.uid(),
   created_at          timestamptz not null default now(),
   updated_at          timestamptz not null default now(),
@@ -77,19 +77,26 @@ create table if not exists public.leads (
   constraint brand_not_blank check (length(trim(brand)) > 0)
 );
 
+-- Safely widen existing check constraints if altering table
+alter table public.leads drop constraint if exists leads_lead_stage_check;
+alter table public.leads add constraint leads_lead_stage_check check (lead_stage in ('Discovery','Qualified','Opportunity','Pilot/POC','Proposal','Value Negotiation','Closed Lost','Closed Won','Client','New','Contacted','Meeting Scheduled','Proposal Sent','Negotiation','Won','Lost'));
+
+alter table public.leads drop constraint if exists leads_lead_status_check;
+alter table public.leads add constraint leads_lead_status_check check (lead_status in ('New','Attempted to Contact','Contacted','Demo Scheduled','Prospect (Meeting/Demo done)','Junk Lead','Closed Lost','Nurture','Opportunity','Hot','Warm','Cold','Converted','Dropped'));
+
 create index if not exists leads_owner_idx on public.leads (owner_id);
 create index if not exists leads_email_idx on public.leads (lower(email));
 create index if not exists leads_stage_idx on public.leads (lead_stage);
 create index if not exists leads_date_idx  on public.leads (lead_date desc);
 
--- Keep updated_at fresh + keep status consistent with Won / Lost
+-- Keep updated_at fresh + keep status consistent with Closed Won / Closed Lost
 create or replace function public.leads_before_write()
 returns trigger language plpgsql as $$
 begin
   new.email := lower(trim(new.email));
   new.brand := trim(new.brand);
-  if new.lead_stage = 'Won'  then new.lead_status := 'Converted'; end if;
-  if new.lead_stage = 'Lost' then new.lead_status := 'Dropped';   end if;
+  if new.lead_stage = 'Closed Won' or new.lead_stage = 'Client' then new.lead_status := 'Opportunity'; end if;
+  if new.lead_stage = 'Closed Lost' then new.lead_status := 'Closed Lost'; end if;
   if tg_op = 'UPDATE' then new.updated_at := now(); end if;
   return new;
 end $$;

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { SOURCES, STAGES, STATUSES } from '@/lib/constants';
+import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { describeActivity, fmtDateTime, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
 
@@ -25,9 +25,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
   const firstMember = people.find(p => p.role === 'member' && p.active);
   return {
-    email: '', brand: '', owner_id: isAdmin ? (firstMember?.id ?? me.id) : me.id,
-    lead_date: today(), lead_source: SOURCES[0], lead_stage: 'New',
-    connect_date: '', comments: '', followup2_date: '', followup2_comments: '', lead_status: 'Warm'
+    email: '', brand: BRANDS[0], owner_id: isAdmin ? (firstMember?.id ?? me.id) : me.id,
+    lead_date: today(), lead_source: SOURCES[0], lead_stage: 'Discovery',
+    connect_date: '', comments: '', followup2_date: '', followup2_comments: '', lead_status: 'New'
   };
 }
 
@@ -78,8 +78,8 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
   const set = <K extends keyof Form>(k: K, v: Form[K]) => {
     setF(prev => {
       const next = { ...prev, [k]: v };
-      if (k === 'lead_stage' && v === 'Won') next.lead_status = 'Converted';
-      if (k === 'lead_stage' && v === 'Lost') next.lead_status = 'Dropped';
+      if (k === 'lead_stage' && (v === 'Closed Won' || v === 'Client' || v === 'Won')) next.lead_status = 'Opportunity';
+      if (k === 'lead_stage' && (v === 'Closed Lost' || v === 'Lost')) next.lead_status = 'Closed Lost';
       return next;
     });
     if (k === 'email') { setDup(null); setDupAck(false); }
@@ -170,7 +170,10 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
               {errors.email && <span className="err">{errors.email}</span>}
             </label>
             <label className="f">Brand
-              <input type="text" value={f.brand} onChange={e => set('brand', e.target.value)} placeholder="Company or brand name" />
+              <input type="text" list="brand-suggestions" value={f.brand} onChange={e => set('brand', e.target.value)} placeholder="ACOE or Tecnoprism" />
+              <datalist id="brand-suggestions">
+                {BRANDS.map(b => <option key={b} value={b} />)}
+              </datalist>
               {errors.brand && <span className="err">{errors.brand}</span>}
             </label>
             <div className="grid2">

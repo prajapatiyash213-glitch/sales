@@ -3,25 +3,42 @@
 // if you rename them here, update the CHECK constraints there too.
 
 export const STAGES: { key: string; color: string }[] = [
-  { key: 'New', color: 'var(--s-new)' },
-  { key: 'Contacted', color: 'var(--s-contacted)' },
-  { key: 'Meeting Scheduled', color: 'var(--s-meeting)' },
-  { key: 'Proposal Sent', color: 'var(--s-proposal)' },
-  { key: 'Negotiation', color: 'var(--s-nego)' },
-  { key: 'Won', color: 'var(--s-won)' },
-  { key: 'Lost', color: 'var(--s-lost)' }
+  { key: 'Discovery', color: 'var(--s-discovery)' },
+  { key: 'Qualified', color: 'var(--s-qualified)' },
+  { key: 'Opportunity', color: 'var(--s-opportunity)' },
+  { key: 'Pilot/POC', color: 'var(--s-pilot)' },
+  { key: 'Proposal', color: 'var(--s-proposal)' },
+  { key: 'Value Negotiation', color: 'var(--s-nego)' },
+  { key: 'Closed Lost', color: 'var(--s-lost)' },
+  { key: 'Closed Won', color: 'var(--s-won)' },
+  { key: 'Client', color: 'var(--s-client)' }
 ];
 
-export const STATUSES = ['Hot', 'Warm', 'Cold', 'Converted', 'Dropped'];
+export const STATUSES = [
+  'New',
+  'Attempted to Contact',
+  'Contacted',
+  'Demo Scheduled',
+  'Prospect (Meeting/Demo done)',
+  'Junk Lead',
+  'Closed Lost',
+  'Nurture',
+  'Opportunity'
+];
 
 export const SOURCES = [
-  'Website: tecnoprism.com',
-  'Website: automationcoe.com',
-  'Event',
-  'LinkedIn',
-  'Referral',
-  'Email campaign',
-  'Cold outreach'
+  'Inbound - Referral',
+  'Inbound - Forms',
+  'Inbound - Visitors',
+  'Outbound - Cold',
+  'Inbound - Drop-Offs',
+  'Events - Imagine',
+  'Events - CFO'
+];
+
+export const BRANDS = [
+  'ACOE',
+  'Tecnoprism'
 ];
 
 export const FIELD_LABELS: Record<string, string> = {
