@@ -80,9 +80,9 @@ export function formatMemberName(p?: Profile | null, fallback?: string): string 
 
 export function downloadLeadsCsv(leads: Lead[], people: Profile[], filename = 'leads.csv') {
   const nameOf = (id: string) => formatMemberName(people.find(p => p.id === id));
-  const header = ['Email','Company','Ownership','Lead Date','Lead Source','Lead Stage','Date of Connect','Comments','Follow-up 2 Date','Comments','Lead Status'];
+  const header = ['Email','Company','Brand','Ownership','Lead Date','Lead Source','Lead Stage','Date of Connect','Comments','Follow-up 2 Date','Comments','Lead Status'];
   const rows = leads.map(l => [
-    l.email, l.brand, nameOf(l.owner_id), l.lead_date, l.lead_source, l.lead_stage,
+    l.email, l.company || '', l.brand, nameOf(l.owner_id), l.lead_date, l.lead_source, l.lead_stage,
     l.connect_date, l.comments, l.followup2_date, l.followup2_comments, l.lead_status
   ]);
   const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');

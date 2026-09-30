@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { COMPANIES, SOURCES, STAGES, STATUSES } from '@/lib/constants';
+import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { downloadLeadsCsv, fmtDate, formatMemberName, initials, isOverdue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
@@ -80,7 +80,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
       (source === 'all' || l.lead_source === source) &&
       (status === 'all' || l.lead_status === status) &&
       (!overdueOnly || isOverdue(l)) &&
-      (!needle || [l.email, l.brand, l.comments, l.followup2_comments].join(' ').toLowerCase().includes(needle))
+      (!needle || [l.email, l.company, l.brand, l.comments, l.followup2_comments].join(' ').toLowerCase().includes(needle))
     );
   }, [scoped, stage, brandFilter, source, status, overdueOnly, q]);
 
@@ -177,7 +177,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         )}
         <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)} aria-label="Filter by brand">
           <option value="all">All brands</option>
-          {COMPANIES.map(b => <option key={b} value={b}>{b}</option>)}
+          {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
         </select>
         <select value={source} onChange={e => setSource(e.target.value)} aria-label="Filter by source">
           <option value="all">All sources</option>
@@ -210,13 +210,14 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
             <div className="table-wrap leads">
               <table>
                 <thead><tr>
-                  <th>Email</th><th>Company</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
+                  <th>Email</th><th>Company</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
                   <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
                 </tr></thead>
                 <tbody>
                   {filtered.map(l => (
                     <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
                       <td>{l.email}</td>
+                      <td>{l.company || '—'}</td>
                       <td><strong>{l.brand}</strong></td>
                       <td>
                         {isAdmin ? (
@@ -264,7 +265,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
               {filtered.map(l => (
                 <button key={l.id} className="card" onClick={() => openLead(l)}>
                   <div className="card-top">
-                    <div><h3>{l.brand}</h3><div className="em">{l.email}</div></div>
+                    <div><h3>{l.company || l.brand}</h3><div className="em">{l.email} {l.company ? `(${l.brand})` : ''}</div></div>
                     <StatusPill status={l.lead_status} />
                   </div>
                   <dl>
@@ -293,8 +294,8 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                   <div key={l.id} className="bcard" draggable tabIndex={0}
                     onDragStart={e => e.dataTransfer.setData('text/plain', l.id)}
                     onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
-                    <strong>{l.brand}</strong>
-                    <span className="muted">{l.email}</span>
+                    <strong>{l.company || l.brand}</strong>
+                    <span className="muted">{l.email}{l.company ? ` • ${l.brand}` : ''}</span>
                     <div className="meta"><span>{isAdmin ? nameOf(l.owner_id) : l.lead_source}</span><StatusPill status={l.lead_status} /></div>
                   </div>
                 ))}

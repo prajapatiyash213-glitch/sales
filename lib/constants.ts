@@ -36,15 +36,16 @@ export const SOURCES = [
   'Events - CFO'
 ];
 
-export const COMPANIES = [
-  'ACOE',
-  'Tecnoprism'
+export const BRANDS = [
+  'Tecnoprism',
+  'automationCOE'
 ];
-export const BRANDS = COMPANIES;
+export const COMPANIES = BRANDS;
 
 export const FIELD_LABELS: Record<string, string> = {
   email: 'Email',
-  brand: 'Company',
+  company: 'Company',
+  brand: 'Brand',
   owner_id: 'Ownership',
   lead_date: 'Lead Date',
   lead_source: 'Lead Source',

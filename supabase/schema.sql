@@ -58,6 +58,7 @@ create trigger on_auth_user_created
 create table if not exists public.leads (
   id                  uuid primary key default gen_random_uuid(),
   email               text not null,
+  company             text default '',
   brand               text not null,
   owner_id            uuid not null references public.profiles(id),
   lead_date           date not null default current_date,
@@ -76,6 +77,9 @@ create table if not exists public.leads (
   constraint email_format check (email ~* '^[^\s@]+@[^\s@]+\.[^\s@]+$'),
   constraint brand_not_blank check (length(trim(brand)) > 0)
 );
+
+-- Ensure company column exists on existing installations
+alter table public.leads add column if not exists company text default '';
 
 -- Safely widen existing check constraints if altering table
 alter table public.leads drop constraint if exists leads_lead_stage_check;

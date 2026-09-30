@@ -12,6 +12,7 @@ export interface Profile {
 export interface Lead {
   id: string;
   email: string;
+  company?: string | null;
   brand: string;
   owner_id: string;
   lead_date: string;
@@ -33,6 +34,7 @@ export interface Activity {
   actor_id: string | null;
   actor_name: string | null;
   action: 'created' | 'updated' | 'deleted';
+  company?: string | null;
   brand: string | null;
   changes: Record<string, { from: unknown; to: unknown }> | null;
   created_at: string;

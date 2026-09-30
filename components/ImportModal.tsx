@@ -15,6 +15,7 @@ interface Props {
 
 interface ParsedLead {
   email: string;
+  company?: string;
   brand: string;
   owner_id: string;
   owner_name: string;
@@ -27,7 +28,7 @@ interface ParsedLead {
   followup2_comments?: string;
 }
 
-import { STATUSES, STAGES } from '@/lib/constants';
+import { BRANDS, STATUSES, STAGES } from '@/lib/constants';
 
 const VALID_STATUSES = STATUSES;
 const VALID_STAGES = STAGES.map(s => s.key);
@@ -123,14 +124,23 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           };
 
           const email = getCol(['email', 'work email', 'email address', 'lead email']);
-          const brand = getCol(['brand', 'company', 'company name', 'brand name', 'client']);
+          const company = getCol(['company', 'company name', 'client']);
+          let brand = getCol(['brand', 'brand name']);
+          if (!brand) {
+            brand = getCol(['company', 'company name']) || BRANDS[0];
+          }
+          if (!BRANDS.includes(brand)) {
+            const matchedBrand = BRANDS.find(b => b.toLowerCase() === brand.toLowerCase());
+            brand = matchedBrand || BRANDS[0];
+          }
+
           const ownerRaw = getCol(['owner', 'ownership', 'owner name', 'sales member', 'assigned to', 'allocated to']);
           const source = getCol(['source', 'lead source', 'channel']) || 'Excel Import';
           const rawStage = getCol(['stage', 'lead stage']);
           const rawStatus = getCol(['status', 'lead status']);
           const comments = getCol(['comments', 'notes']);
 
-          if (!email || !brand) return; // Skip invalid rows
+          if (!email) return; // Skip invalid rows
 
           const stage = normalizeStage(rawStage);
           const status = normalizeStatus(rawStatus);
@@ -139,6 +149,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
 
           leadsList.push({
             email,
+            company,
             brand,
             owner_id: allocatedOwner.id,
             owner_name: allocatedOwner.full_name || allocatedOwner.email,
@@ -150,7 +161,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         });
 
         if (!leadsList.length) {
-          setError('Could not find valid Email & Brand columns in the file.');
+          setError('Could not find valid Email column in the file.');
           setParsed([]);
         } else {
           setParsed(leadsList);
@@ -177,6 +188,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
 
         return {
           email: l.email.toLowerCase(),
+          company: l.company || null,
           brand: l.brand,
           owner_id: l.owner_id,
           lead_source: l.lead_source,
@@ -186,7 +198,13 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         };
       });
 
-      const { error } = await supabase.from('leads').insert(insertData);
+      let { error } = await supabase.from('leads').insert(insertData);
+      if (error && (error.code === 'PGRST204' || error.message?.includes('company'))) {
+        const fallbackInsert = insertData.map(({ company, ...rest }) => rest);
+        const retry = await supabase.from('leads').insert(fallbackInsert);
+        error = retry.error;
+      }
+
       if (error) {
         setError(error.message);
         setBusy(false);
@@ -227,7 +245,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
               style={{ width: '100%' }}
             />
             <div className="small muted" style={{ marginTop: 8 }}>
-              Supported columns: <b>Email, Company, Ownership / Sales Member, Source, Stage</b>
+              Supported columns: <b>Email, Company, Brand, Ownership / Sales Member, Source, Stage</b>
             </div>
           </div>
 
@@ -242,6 +260,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
                     <tr>
                       <th>Email</th>
                       <th>Company</th>
+                      <th>Brand</th>
                       <th>Allocated To</th>
                       <th>Stage</th>
                     </tr>
@@ -250,6 +269,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
                     {parsed.map((item, idx) => (
                       <tr key={idx}>
                         <td>{item.email}</td>
+                        <td>{item.company || '—'}</td>
                         <td><strong>{item.brand}</strong></td>
                         <td>
                           <span className="role-tag admin" style={{ background: '#E0F2FE', color: '#0369A1' }}>

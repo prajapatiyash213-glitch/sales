@@ -1,12 +1,12 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { COMPANIES, SOURCES, STAGES, STATUSES } from '@/lib/constants';
+import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { describeActivity, fmtDateTime, formatMemberName, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
 
 type Form = {
-  email: string; brand: string; owner_id: string; lead_date: string; lead_source: string; lead_stage: string;
+  email: string; company: string; brand: string; owner_id: string; lead_date: string; lead_source: string; lead_stage: string;
   connect_date: string; comments: string; followup2_date: string; followup2_comments: string; lead_status: string;
 };
 
@@ -25,7 +25,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
   const firstMember = people.find(p => p.role === 'member' && p.active);
   return {
-    email: '', brand: COMPANIES[0], owner_id: isAdmin ? (firstMember?.id ?? me.id) : me.id,
+    email: '', company: '', brand: BRANDS[0], owner_id: isAdmin ? (firstMember?.id ?? me.id) : me.id,
     lead_date: today(), lead_source: SOURCES[0], lead_stage: 'Discovery',
     connect_date: '', comments: '', followup2_date: '', followup2_comments: '', lead_status: 'New'
   };
@@ -33,7 +33,7 @@ function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
 
 function fromLead(l: Lead): Form {
   return {
-    email: l.email, brand: l.brand, owner_id: l.owner_id, lead_date: l.lead_date, lead_source: l.lead_source,
+    email: l.email, company: l.company ?? '', brand: l.brand || BRANDS[0], owner_id: l.owner_id, lead_date: l.lead_date, lead_source: l.lead_source,
     lead_stage: l.lead_stage, connect_date: l.connect_date ?? '', comments: l.comments ?? '',
     followup2_date: l.followup2_date ?? '', followup2_comments: l.followup2_comments ?? '', lead_status: l.lead_status
   };
@@ -90,7 +90,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
     const email = f.email.trim().toLowerCase();
     if (!email) e.email = 'Enter the lead\u2019s email.';
     else if (!EMAIL_RE.test(email)) e.email = 'This email looks incomplete. Check for a missing @ or domain.';
-    if (!f.brand.trim()) e.brand = 'Enter the company name.';
+    if (!f.brand.trim()) e.brand = 'Select the brand.';
     if (!f.lead_date) e.lead_date = 'Pick the date the lead came in.';
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -108,9 +108,10 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       }
     }
 
-    const payload = {
+    const payload: any = {
       email,
-      brand: f.brand.trim(),
+      company: f.company.trim() || null,
+      brand: f.brand.trim() || BRANDS[0],
       owner_id: isAdmin ? f.owner_id : me.id,
       lead_date: f.lead_date,
       lead_source: f.lead_source,
@@ -122,9 +123,18 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       lead_status: f.lead_status
     };
 
-    const { error } = lead
+    let { error } = lead
       ? await supabase.from('leads').update(payload).eq('id', lead.id)
       : await supabase.from('leads').insert(payload);
+
+    if (error && (error.code === 'PGRST204' || error.message?.includes('company'))) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.company;
+      const retry = lead
+        ? await supabase.from('leads').update(fallbackPayload).eq('id', lead.id)
+        : await supabase.from('leads').insert(fallbackPayload);
+      error = retry.error;
+    }
 
     setBusy(false);
     if (error) { setSaveError(`Could not save: ${error.message}`); return; }
@@ -140,7 +150,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
   }
 
   async function remove() {
-    if (!lead || !confirm(`Delete ${lead.brand}? This removes the lead for everyone.`)) return;
+    if (!lead || !confirm(`Delete ${lead.company || lead.brand}? This removes the lead for everyone.`)) return;
     setBusy(true);
     const { error } = await supabase.from('leads').delete().eq('id', lead.id);
     setBusy(false);
@@ -169,13 +179,18 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
               <input ref={emailRef} type="email" value={f.email} onChange={e => set('email', e.target.value)} placeholder="name@company.com" />
               {errors.email && <span className="err">{errors.email}</span>}
             </label>
-            <label className="f">Brand / Company
-              <select value={f.brand} onChange={e => set('brand', e.target.value)}>
-                {COMPANIES.map(b => <option key={b} value={b}>{b}</option>)}
-                {!COMPANIES.includes(f.brand) && f.brand && <option value={f.brand}>{f.brand}</option>}
-              </select>
-              {errors.brand && <span className="err">{errors.brand}</span>}
-            </label>
+            <div className="grid2">
+              <label className="f">Company Name
+                <input type="text" value={f.company} onChange={e => set('company', e.target.value)} placeholder="e.g. Acme Corp" />
+              </label>
+              <label className="f">Brand
+                <select value={f.brand} onChange={e => set('brand', e.target.value)}>
+                  {BRANDS.map(b => <option key={b} value={b}>{b}</option>)}
+                  {!BRANDS.includes(f.brand) && f.brand && <option value={f.brand}>{f.brand}</option>}
+                </select>
+                {errors.brand && <span className="err">{errors.brand}</span>}
+              </label>
+            </div>
             <div className="grid2">
               <label className="f">Ownership
                 <select value={f.owner_id} disabled={!isAdmin} onChange={e => set('owner_id', e.target.value)}>
