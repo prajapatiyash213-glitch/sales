@@ -56,10 +56,12 @@ function csvCell(v: unknown): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
+const GENERIC_NAMES = ['sales', 'sales member', 'member', 'admin', 'user', 'test admin', 'sales person'];
+
 export function formatMemberName(p?: Profile | null, fallback?: string): string {
   if (!p) return fallback ?? 'Unknown';
   const name = p.full_name?.trim();
-  if (name && name.toLowerCase() !== 'sales member') {
+  if (name && !GENERIC_NAMES.includes(name.toLowerCase())) {
     return name;
   }
   if (p.email) {

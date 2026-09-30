@@ -1,17 +1,8 @@
 import type { Profile } from '@/lib/types';
-import { initials } from '@/lib/format';
+import { formatMemberName, initials } from '@/lib/format';
 
 export default function AppHeader({ profile }: { profile: Profile }) {
-  const displayName =
-    profile.full_name && profile.full_name !== 'Sales Member'
-      ? profile.full_name
-      : profile.email
-      ? profile.email
-          .split('@')[0]
-          .split(/[\._]/)
-          .map(s => s.charAt(0).toUpperCase() + s.slice(1))
-          .join(' ')
-      : 'User';
+  const displayName = formatMemberName(profile, 'User');
 
   return (
     <header className="top">
