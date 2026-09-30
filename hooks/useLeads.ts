@@ -33,6 +33,9 @@ export function useLeads() {
 
   useEffect(() => {
     reload();
+
+    const interval = setInterval(reload, 4000);
+
     const channel = supabase
       .channel('leads-live')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => {
@@ -43,6 +46,7 @@ export function useLeads() {
     const onFocus = () => reload();
     window.addEventListener('focus', onFocus);
     return () => {
+      clearInterval(interval);
       supabase.removeChannel(channel);
       window.removeEventListener('focus', onFocus);
       if (timer.current) clearTimeout(timer.current);
