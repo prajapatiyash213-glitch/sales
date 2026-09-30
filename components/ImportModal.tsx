@@ -27,6 +27,34 @@ interface ParsedLead {
   followup2_comments?: string;
 }
 
+const VALID_STATUSES = ['Hot', 'Warm', 'Cold', 'Converted', 'Dropped'];
+const VALID_STAGES = ['New', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation', 'Won', 'Lost'];
+
+function normalizeStatus(raw: string): string {
+  if (!raw) return 'Warm';
+  const clean = raw.trim().toLowerCase();
+  if (clean === 'hot' || clean === 'high' || clean === 'urgent') return 'Hot';
+  if (clean === 'cold' || clean === 'low') return 'Cold';
+  if (clean === 'converted' || clean === 'won' || clean === 'closed') return 'Converted';
+  if (clean === 'dropped' || clean === 'lost' || clean === 'dead') return 'Dropped';
+  const match = VALID_STATUSES.find(s => s.toLowerCase() === clean);
+  return match ?? 'Warm';
+}
+
+function normalizeStage(raw: string): string {
+  if (!raw) return 'New';
+  const clean = raw.trim().toLowerCase();
+  const match = VALID_STAGES.find(s => s.toLowerCase() === clean);
+  if (match) return match;
+  if (clean.includes('contact')) return 'Contacted';
+  if (clean.includes('meet')) return 'Meeting Scheduled';
+  if (clean.includes('propos')) return 'Proposal Sent';
+  if (clean.includes('nego')) return 'Negotiation';
+  if (clean.includes('won') || clean.includes('close')) return 'Won';
+  if (clean.includes('lost')) return 'Lost';
+  return 'New';
+}
+
 export default function ImportModal({ open, onClose, me, people, reload }: Props) {
   const toast = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -88,12 +116,14 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           const brand = getCol(['brand', 'company', 'company name', 'brand name', 'client']);
           const ownerRaw = getCol(['owner', 'ownership', 'owner name', 'sales member', 'assigned to', 'allocated to']);
           const source = getCol(['source', 'lead source', 'channel']) || 'Excel Import';
-          const stage = getCol(['stage', 'lead stage']) || 'New';
-          const status = getCol(['status', 'lead status']) || 'Warm';
+          const rawStage = getCol(['stage', 'lead stage']);
+          const rawStatus = getCol(['status', 'lead status']);
           const comments = getCol(['comments', 'notes']);
 
           if (!email || !brand) return; // Skip invalid rows
 
+          const stage = normalizeStage(rawStage);
+          const status = normalizeStatus(rawStatus);
           const matchedOwner = findMember(ownerRaw);
           const allocatedOwner = matchedOwner ?? me;
 
