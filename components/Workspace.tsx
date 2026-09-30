@@ -192,7 +192,36 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                     <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
                       <td>{l.email}</td>
                       <td><strong>{l.brand}</strong></td>
-                      <td><span className="owner"><span className="avatar">{initials(nameOf(l.owner_id))}</span>{nameOf(l.owner_id)}</span></td>
+                      <td>
+                        {isAdmin ? (
+                          <select
+                            value={l.owner_id}
+                            onClick={e => e.stopPropagation()}
+                            onChange={async (e) => {
+                              e.stopPropagation();
+                              const newOwnerId = e.target.value;
+                              if (newOwnerId === l.owner_id) return;
+                              const newOwner = people.find(p => p.id === newOwnerId);
+                              const newName = newOwner?.full_name || newOwner?.email || 'sales member';
+                              const { error } = await supabase.from('leads').update({ owner_id: newOwnerId }).eq('id', l.id);
+                              if (error) {
+                                toast.show(`Could not reallocate lead: ${error.message}`);
+                              } else {
+                                toast.show(`Lead allotted to ${newName}`);
+                                reload();
+                              }
+                            }}
+                            className="owner-select"
+                            title="Change lead ownership"
+                          >
+                            {people.filter(p => p.active || p.id === l.owner_id).map(m => (
+                              <option key={m.id} value={m.id}>{m.full_name || m.email}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="owner"><span className="avatar">{initials(nameOf(l.owner_id))}</span>{nameOf(l.owner_id)}</span>
+                        )}
+                      </td>
                       <td>{fmtDate(l.lead_date)}</td>
                       <td>{l.lead_source}</td>
                       <td><StagePill stage={l.lead_stage} /></td>

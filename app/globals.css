@@ -696,6 +696,22 @@ tbody tr:last-child td {
   font-size: 11px;
 }
 
+select.owner-select {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  outline: none;
+}
+
+select.owner-select:hover, select.owner-select:focus {
+  border-color: var(--accent);
+}
+
 .empty {
   padding: 48px 20px;
   text-align: center;

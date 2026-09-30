@@ -128,7 +128,14 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
 
     setBusy(false);
     if (error) { setSaveError(`Could not save: ${error.message}`); return; }
-    onSaved(lead ? 'Changes saved' : 'Lead added');
+    
+    const isReallocation = lead && isAdmin && lead.owner_id !== f.owner_id;
+    const newOwnerName = people.find(p => p.id === f.owner_id)?.full_name || 'sales member';
+    const msg = lead
+      ? (isReallocation ? `Lead allotted to ${newOwnerName}` : 'Changes saved')
+      : 'Lead added';
+
+    onSaved(msg);
     onClose();
   }
 
