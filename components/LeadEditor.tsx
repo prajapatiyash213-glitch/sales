@@ -136,8 +136,34 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       error = retry.error;
     }
 
+    if (error && (error.message?.includes('leads_lead_stage_check') || error.code === '23514')) {
+      const legacyMap: Record<string, string> = {
+        'Discovery': 'Discovery',
+        'Qualified': 'Contacted',
+        'Opportunity': 'Meeting Scheduled',
+        'Pilot/POC': 'Proposal Sent',
+        'Proposal': 'Proposal Sent',
+        'Value Negotiation': 'Negotiation',
+        'Closed Lost': 'Closed Lost',
+        'Closed Won': 'Closed Won',
+        'Client': 'Client'
+      };
+      const legacyStage = legacyMap[f.lead_stage] || 'Discovery';
+      const fallbackPayload = { ...payload, lead_stage: legacyStage };
+      delete fallbackPayload.company;
+      const retry = lead
+        ? await supabase.from('leads').update(fallbackPayload).eq('id', lead.id)
+        : await supabase.from('leads').insert(fallbackPayload);
+      if (!retry.error) {
+        error = null;
+      }
+    }
+
     setBusy(false);
-    if (error) { setSaveError(`Could not save: ${error.message}`); return; }
+    if (error) {
+      setSaveError(`Could not save: ${error.message}. (Fix: run "ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check;" in Supabase SQL Editor)`);
+      return;
+    }
     
     const isReallocation = lead && isAdmin && lead.owner_id !== f.owner_id;
     const newOwnerName = people.find(p => p.id === f.owner_id)?.full_name || 'sales member';

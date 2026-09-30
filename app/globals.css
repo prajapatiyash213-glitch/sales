@@ -1160,3 +1160,101 @@ textarea {
   opacity: 1;
   transform: translate(-50%, 0);
 }
+
+/* Lead Grid View */
+.lead-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.grid-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+}
+
+.grid-card:hover {
+  border-color: #FF6B00;
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px -4px rgba(255, 107, 0, 0.15);
+}
+
+.gc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.gc-company {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0F172A;
+  line-height: 1.25;
+}
+
+.gc-brand-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: #FEF3C7;
+  color: #D97706;
+  margin-top: 4px;
+}
+
+.gc-email {
+  font-size: 13.5px;
+  color: var(--muted);
+  font-weight: 500;
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+.gc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid #F1F5F9;
+  padding-top: 14px;
+  font-size: 13.5px;
+}
+
+.gc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.gc-label {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+.gc-comments {
+  margin-top: 6px;
+  background: #F8FAFC;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: #334155;
+  border: 1px dashed #E2E8F0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

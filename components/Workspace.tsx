@@ -46,7 +46,7 @@ function StatusPill({ status }: { status: string }) {
 export default function Workspace({ leads, loading, error, reload, me, people, isAdmin, initialOwner }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
-  const [view, setView] = useState<'table' | 'board'>('table');
+  const [view, setView] = useState<'table' | 'grid'>('table');
   const [q, setQ] = useState('');
   const [owner, setOwner] = useState(initialOwner ?? 'all');
   const [brandFilter, setBrandFilter] = useState('all');
@@ -56,7 +56,6 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [editor, setEditor] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [importOpen, setImportOpen] = useState(false);
-  const [dragOver, setDragOver] = useState<string | null>(null);
 
   const nameOf = (id: string) => {
     const p = people.find(item => item.id === id) ?? (id === me.id ? me : null);
@@ -90,14 +89,6 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const activeCount = scoped.filter(l => !['Closed Lost', 'Lost'].includes(l.lead_stage) && !['Junk Lead', 'Closed Lost', 'Dropped'].includes(l.lead_status)).length;
   const winRate = scoped.length ? Math.round((wonCount / scoped.length) * 100) : 0;
   const sources = [...new Set([...SOURCES, ...leads.map(l => l.lead_source)])];
-
-  async function moveStage(id: string, newStage: string) {
-    const lead = leads.find(l => l.id === id);
-    if (!lead || lead.lead_stage === newStage) return;
-    const { error } = await supabase.from('leads').update({ lead_stage: newStage }).eq('id', id);
-    if (error) toast.show(`Could not move lead: ${error.message}`);
-    else { toast.show(`Moved to ${newStage}`); reload(); }
-  }
 
   const openLead = (lead: Lead | null) => setEditor({ open: true, lead });
 
@@ -143,7 +134,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
       <div className="strip-head">
         <h2>{title} <span className="count">({scoped.length})</span></h2>
         <span className="hint">
-          {view === 'board' ? 'Drag a card to move it to another stage'
+          {view === 'grid' ? 'Click any card to view or edit lead details'
             : stage ? <>Showing {stage} only. <button className="linkish" onClick={() => setStage(null)}>Show all stages</button></>
             : 'Tap a stage to filter the list'}
         </span>
@@ -156,7 +147,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
             <button key={s.key} className={`seg ${stage === s.key ? 'on' : ''}`}
               style={{ background: s.color, flexGrow: Math.max(n, 0.6) }}
               aria-label={`${s.key}: ${n} leads`} aria-pressed={stage === s.key}
-              onClick={() => { if (view === 'table') setStage(stage === s.key ? null : s.key); }}>
+              onClick={() => { setStage(stage === s.key ? null : s.key); }}>
               <b>{n}</b><span>{s.key}</span>
             </button>
           );
@@ -166,7 +157,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
       <div className="toolbar">
         <div className="seg-toggle" role="tablist" aria-label="View">
           <button role="tab" aria-selected={view === 'table'} className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>List</button>
-          <button role="tab" aria-selected={view === 'board'} className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}>Board</button>
+          <button role="tab" aria-selected={view === 'grid'} className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')}>Grid</button>
         </div>
         <input type="search" placeholder="Search email, company or comments" value={q} onChange={e => setQ(e.target.value)} aria-label="Search leads" />
         {isAdmin && (
@@ -199,109 +190,107 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
 
       {loading ? (
         <div className="table-wrap"><div className="empty">Loading leads…</div></div>
+      ) : filtered.length === 0 ? (
+        <div className="table-wrap"><div className="empty">
+          {scoped.length ? 'No leads match these filters. Clear the search or pick another stage.' : 'No leads yet. Add your first lead to start the pipeline.'}
+          <br /><button className="btn primary" onClick={() => openLead(null)}>+ Add lead</button>
+        </div></div>
       ) : view === 'table' ? (
-        filtered.length === 0 ? (
-          <div className="table-wrap"><div className="empty">
-            {scoped.length ? 'No leads match these filters. Clear the search or pick another stage.' : 'No leads yet. Add your first lead to start the pipeline.'}
-            <br /><button className="btn primary" onClick={() => openLead(null)}>+ Add lead</button>
-          </div></div>
-        ) : (
-          <>
-            <div className="table-wrap leads">
-              <table>
-                <thead><tr>
-                  <th>Email</th><th>Company</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
-                  <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
-                </tr></thead>
-                <tbody>
-                  {filtered.map(l => (
-                    <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
-                      <td>{l.email}</td>
-                      <td>{l.company || '—'}</td>
-                      <td><strong>{l.brand}</strong></td>
-                      <td>
-                        {isAdmin ? (
-                          <select
-                            value={l.owner_id}
-                            onClick={e => e.stopPropagation()}
-                            onChange={async (e) => {
-                              e.stopPropagation();
-                              const newOwnerId = e.target.value;
-                              if (newOwnerId === l.owner_id) return;
-                              const newName = nameOf(newOwnerId);
-                              const { error } = await supabase.from('leads').update({ owner_id: newOwnerId }).eq('id', l.id);
-                              if (error) {
-                                toast.show(`Could not reallocate lead: ${error.message}`);
-                              } else {
-                                toast.show(`Lead allotted to ${newName}`);
-                                reload();
-                              }
-                            }}
-                            className="owner-select"
-                            title="Change lead ownership"
-                          >
-                            {people.filter(p => p.active || p.id === l.owner_id).map(m => (
-                              <option key={m.id} value={m.id}>{nameOf(m.id)}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="owner"><span className="avatar">{initials(nameOf(l.owner_id))}</span>{nameOf(l.owner_id)}</span>
-                        )}
-                      </td>
-                      <td>{fmtDate(l.lead_date)}</td>
-                      <td>{l.lead_source}</td>
-                      <td><StagePill stage={l.lead_stage} /></td>
-                      <td>{fmtDate(l.connect_date)}</td>
-                      <td className="cm"><div title={l.comments ?? ''}>{l.comments || '—'}</div></td>
-                      <td><FollowUp l={l} /></td>
-                      <td className="cm"><div title={l.followup2_comments ?? ''}>{l.followup2_comments || '—'}</div></td>
-                      <td><StatusPill status={l.lead_status} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="cards">
-              {filtered.map(l => (
-                <button key={l.id} className="card" onClick={() => openLead(l)}>
-                  <div className="card-top">
-                    <div><h3>{l.company || l.brand}</h3><div className="em">{l.email} {l.company ? `(${l.brand})` : ''}</div></div>
-                    <StatusPill status={l.lead_status} />
-                  </div>
-                  <dl>
-                    <dt>Stage</dt><dd><StagePill stage={l.lead_stage} /></dd>
-                    <dt>Owner</dt><dd>{nameOf(l.owner_id)}</dd>
-                    <dt>Source</dt><dd>{l.lead_source}</dd>
-                    <dt>Lead date</dt><dd>{fmtDate(l.lead_date)}</dd>
-                    <dt>Follow-up 2</dt><dd><FollowUp l={l} /></dd>
-                  </dl>
-                </button>
-              ))}
-            </div>
-          </>
-        )
-      ) : (
-        <div className="board">
-          {STAGES.map(s => {
-            const items = filtered.filter(l => l.lead_stage === s.key);
-            return (
-              <div key={s.key} className={`col ${dragOver === s.key ? 'over' : ''}`}
-                onDragOver={(e: DragEvent) => { e.preventDefault(); setDragOver(s.key); }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={(e: DragEvent) => { e.preventDefault(); setDragOver(null); moveStage(e.dataTransfer.getData('text/plain'), s.key); }}>
-                <h4><StagePill stage={s.key} /><em>{items.length}</em></h4>
-                {items.map(l => (
-                  <div key={l.id} className="bcard" draggable tabIndex={0}
-                    onDragStart={e => e.dataTransfer.setData('text/plain', l.id)}
-                    onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
-                    <strong>{l.company || l.brand}</strong>
-                    <span className="muted">{l.email}{l.company ? ` • ${l.brand}` : ''}</span>
-                    <div className="meta"><span>{isAdmin ? nameOf(l.owner_id) : l.lead_source}</span><StatusPill status={l.lead_status} /></div>
-                  </div>
+        <>
+          <div className="table-wrap leads">
+            <table>
+              <thead><tr>
+                <th>Email</th><th>Company</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
+                <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
+              </tr></thead>
+              <tbody>
+                {filtered.map(l => (
+                  <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
+                    <td>{l.email}</td>
+                    <td>{l.company || '—'}</td>
+                    <td><strong>{l.brand}</strong></td>
+                    <td>
+                      {isAdmin ? (
+                        <select
+                          value={l.owner_id}
+                          onClick={e => e.stopPropagation()}
+                          onChange={async (e) => {
+                            e.stopPropagation();
+                            const newOwnerId = e.target.value;
+                            if (newOwnerId === l.owner_id) return;
+                            const newName = nameOf(newOwnerId);
+                            const { error } = await supabase.from('leads').update({ owner_id: newOwnerId }).eq('id', l.id);
+                            if (error) {
+                              toast.show(`Could not reallocate lead: ${error.message}`);
+                            } else {
+                              toast.show(`Lead allotted to ${newName}`);
+                              reload();
+                            }
+                          }}
+                          className="owner-select"
+                          title="Change lead ownership"
+                        >
+                          {people.filter(p => p.active || p.id === l.owner_id).map(m => (
+                            <option key={m.id} value={m.id}>{nameOf(m.id)}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="owner"><span className="avatar">{initials(nameOf(l.owner_id))}</span>{nameOf(l.owner_id)}</span>
+                      )}
+                    </td>
+                    <td>{fmtDate(l.lead_date)}</td>
+                    <td>{l.lead_source}</td>
+                    <td><StagePill stage={l.lead_stage} /></td>
+                    <td>{fmtDate(l.connect_date)}</td>
+                    <td className="cm"><div title={l.comments ?? ''}>{l.comments || '—'}</div></td>
+                    <td><FollowUp l={l} /></td>
+                    <td className="cm"><div title={l.followup2_comments ?? ''}>{l.followup2_comments || '—'}</div></td>
+                    <td><StatusPill status={l.lead_status} /></td>
+                  </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="cards">
+            {filtered.map(l => (
+              <button key={l.id} className="card" onClick={() => openLead(l)}>
+                <div className="card-top">
+                  <div><h3>{l.company || l.brand}</h3><div className="em">{l.email} {l.company ? `(${l.brand})` : ''}</div></div>
+                  <StatusPill status={l.lead_status} />
+                </div>
+                <dl>
+                  <dt>Stage</dt><dd><StagePill stage={l.lead_stage} /></dd>
+                  <dt>Owner</dt><dd>{nameOf(l.owner_id)}</dd>
+                  <dt>Source</dt><dd>{l.lead_source}</dd>
+                  <dt>Lead date</dt><dd>{fmtDate(l.lead_date)}</dd>
+                  <dt>Follow-up 2</dt><dd><FollowUp l={l} /></dd>
+                </dl>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="lead-grid">
+          {filtered.map(l => (
+            <div key={l.id} className="grid-card" tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
+              <div className="gc-head">
+                <div>
+                  <h3 className="gc-company">{l.company || l.brand}</h3>
+                  {l.company && <span className="gc-brand-tag">{l.brand}</span>}
+                </div>
+                <StatusPill status={l.lead_status} />
               </div>
-            );
-          })}
+              <div className="gc-email">{l.email}</div>
+              <div className="gc-body">
+                <div className="gc-row"><span className="gc-label">Stage:</span> <StagePill stage={l.lead_stage} /></div>
+                <div className="gc-row"><span className="gc-label">Ownership:</span> <span className="owner"><span className="avatar">{initials(nameOf(l.owner_id))}</span>{nameOf(l.owner_id)}</span></div>
+                <div className="gc-row"><span className="gc-label">Lead Date:</span> <span>{fmtDate(l.lead_date)}</span></div>
+                <div className="gc-row"><span className="gc-label">Source:</span> <span>{l.lead_source}</span></div>
+                {l.followup2_date && <div className="gc-row"><span className="gc-label">Follow-up 2:</span> <FollowUp l={l} /></div>}
+                {l.comments && <div className="gc-comments" title={l.comments}>💬 {l.comments}</div>}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
