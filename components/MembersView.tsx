@@ -2,7 +2,7 @@
 import { useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { inviteMember, updateMember } from '@/app/admin/actions';
-import { initials } from '@/lib/format';
+import { formatMemberName, initials } from '@/lib/format';
 import type { Lead, Profile, Role } from '@/lib/types';
 import { useToast } from './Toast';
 
@@ -60,10 +60,12 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
         <table className="members">
           <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Leads</th><th>Access</th></tr></thead>
           <tbody>
-            {people.map(p => (
-              <tr key={p.id} className={p.active ? '' : 'inactive'}>
-                <td><span className="owner"><span className="avatar">{initials(p.full_name || p.email)}</span>{p.full_name || '—'}{p.id === me.id && <span className="muted"> (you)</span>}</span></td>
-                <td>{p.email}</td>
+            {people.map(p => {
+              const nameText = formatMemberName(p);
+              return (
+                <tr key={p.id} className={p.active ? '' : 'inactive'}>
+                  <td><span className="owner"><span className="avatar">{initials(nameText)}</span>{nameText}{p.id === me.id && <span className="muted"> (you)</span>}</span></td>
+                  <td>{p.email}</td>
                 <td>
                   <select value={p.role} disabled={pending || p.id === me.id} onChange={e => change(p.id, { role: e.target.value as Role })} aria-label={`Role for ${p.full_name}`}>
                     <option value="member">Sales member</option>
@@ -83,7 +85,8 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
                   )}
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>

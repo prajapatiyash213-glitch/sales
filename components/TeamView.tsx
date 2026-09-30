@@ -1,6 +1,6 @@
 'use client';
 import { STAGES } from '@/lib/constants';
-import { initials, isOverdue } from '@/lib/format';
+import { formatMemberName, initials, isOverdue } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 
 export default function TeamView({ leads, people, onOpenMember }: { leads: Lead[]; people: Profile[]; onOpenMember: (id: string) => void }) {
@@ -11,6 +11,7 @@ export default function TeamView({ leads, people, onOpenMember }: { leads: Lead[
       {owners.length === 0 && <div className="table-wrap"><div className="empty">No sales members yet. Invite them from the Members tab.</div></div>}
       <div className="team">
         {owners.map(m => {
+          const name = formatMemberName(m);
           const ls = leads.filter(l => l.owner_id === m.id);
           const won = ls.filter(l => l.lead_stage === 'Won').length;
           const hot = ls.filter(l => l.lead_status === 'Hot').length;
@@ -20,8 +21,8 @@ export default function TeamView({ leads, people, onOpenMember }: { leads: Lead[
           return (
             <button key={m.id} className="tm" onClick={() => onOpenMember(m.id)}>
               <div className="tm-head">
-                <span className="avatar">{initials(m.full_name || m.email)}</span>
-                <strong>{m.full_name || m.email}</strong>
+                <span className="avatar">{initials(name)}</span>
+                <strong>{name}</strong>
                 {!m.active && <span className="role-tag">Inactive</span>}
               </div>
               <div className="tm-nums">

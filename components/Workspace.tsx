@@ -233,8 +233,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                               e.stopPropagation();
                               const newOwnerId = e.target.value;
                               if (newOwnerId === l.owner_id) return;
-                              const newOwner = people.find(p => p.id === newOwnerId);
-                              const newName = newOwner?.full_name || newOwner?.email || 'sales member';
+                              const newName = nameOf(newOwnerId);
                               const { error } = await supabase.from('leads').update({ owner_id: newOwnerId }).eq('id', l.id);
                               if (error) {
                                 toast.show(`Could not reallocate lead: ${error.message}`);
@@ -247,7 +246,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                             title="Change lead ownership"
                           >
                             {people.filter(p => p.active || p.id === l.owner_id).map(m => (
-                              <option key={m.id} value={m.id}>{m.full_name || m.email}</option>
+                              <option key={m.id} value={m.id}>{nameOf(m.id)}</option>
                             ))}
                           </select>
                         ) : (

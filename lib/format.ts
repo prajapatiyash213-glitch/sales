@@ -56,8 +56,25 @@ function csvCell(v: unknown): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
+export function formatMemberName(p?: Profile | null, fallback?: string): string {
+  if (!p) return fallback ?? 'Unknown';
+  const name = p.full_name?.trim();
+  if (name && name.toLowerCase() !== 'sales member') {
+    return name;
+  }
+  if (p.email) {
+    const handle = p.email.split('@')[0];
+    return handle
+      .split(/[\._]/)
+      .filter(Boolean)
+      .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+      .join(' ');
+  }
+  return name || 'Member';
+}
+
 export function downloadLeadsCsv(leads: Lead[], people: Profile[], filename = 'leads.csv') {
-  const nameOf = (id: string) => people.find(p => p.id === id)?.full_name ?? '';
+  const nameOf = (id: string) => formatMemberName(people.find(p => p.id === id));
   const header = ['Email','Company','Ownership','Lead Date','Lead Source','Lead Stage','Date of Connect','Comments','Follow-up 2 Date','Comments','Lead Status'];
   const rows = leads.map(l => [
     l.email, l.brand, nameOf(l.owner_id), l.lead_date, l.lead_source, l.lead_stage,
