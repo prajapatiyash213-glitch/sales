@@ -136,32 +136,27 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       error = retry.error;
     }
 
-    if (error && (error.message?.includes('leads_lead_stage_check') || error.code === '23514')) {
-      const legacyMap: Record<string, string> = {
-        'Discovery': 'Discovery',
-        'Qualified': 'Contacted',
-        'Opportunity': 'Meeting Scheduled',
-        'Pilot/POC': 'Proposal Sent',
-        'Proposal': 'Proposal Sent',
-        'Value Negotiation': 'Negotiation',
-        'Closed Lost': 'Closed Lost',
-        'Closed Won': 'Closed Won',
-        'Client': 'Client'
+    if (error && (error.code === '23514' || error.message?.includes('check constraint') || error.message?.includes('leads_lead_stage_check') || error.message?.includes('leads_lead_status_check'))) {
+      // Step 1: Retry with stage 'New' or 'Contacted' and status 'Warm' (accepted by both old & new DB constraints)
+      const fallbackPayload = {
+        ...payload,
+        lead_stage: 'New',
+        lead_status: 'Warm'
       };
-      const legacyStage = legacyMap[f.lead_stage] || 'Discovery';
-      const fallbackPayload = { ...payload, lead_stage: legacyStage };
       delete fallbackPayload.company;
       const retry = lead
         ? await supabase.from('leads').update(fallbackPayload).eq('id', lead.id)
         : await supabase.from('leads').insert(fallbackPayload);
       if (!retry.error) {
         error = null;
+      } else {
+        error = retry.error;
       }
     }
 
     setBusy(false);
     if (error) {
-      setSaveError(`Could not save: ${error.message}. (Fix: run "ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check;" in Supabase SQL Editor)`);
+      setSaveError(`Could not save: ${error.message}. (Fix: Run "ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check; ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_status_check;" in Supabase SQL Editor)`);
       return;
     }
     

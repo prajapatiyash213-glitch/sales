@@ -81,12 +81,9 @@ create table if not exists public.leads (
 -- Ensure company column exists on existing installations
 alter table public.leads add column if not exists company text default '';
 
--- Safely widen existing check constraints if altering table
+-- Remove restrictive check constraints so custom stages and statuses never fail
 alter table public.leads drop constraint if exists leads_lead_stage_check;
-alter table public.leads add constraint leads_lead_stage_check check (lead_stage in ('Discovery','Qualified','Opportunity','Pilot/POC','Proposal','Value Negotiation','Closed Lost','Closed Won','Client','New','Contacted','Meeting Scheduled','Proposal Sent','Negotiation','Won','Lost'));
-
 alter table public.leads drop constraint if exists leads_lead_status_check;
-alter table public.leads add constraint leads_lead_status_check check (lead_status in ('New','Attempted to Contact','Contacted','Demo Scheduled','Prospect (Meeting/Demo done)','Junk Lead','Closed Lost','Nurture','Opportunity','Hot','Warm','Cold','Converted','Dropped'));
 
 create index if not exists leads_owner_idx on public.leads (owner_id);
 create index if not exists leads_email_idx on public.leads (lower(email));
