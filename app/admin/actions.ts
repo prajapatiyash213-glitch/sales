@@ -27,10 +27,13 @@ export async function inviteMember(input: { email: string; fullName: string; rol
     if (!fullName) return { ok: false, message: 'Enter the member\u2019s full name.' };
 
     const admin = createAdminClient();
-    const site = process.env.NEXT_PUBLIC_SITE_URL;
+    let site = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!site || site.includes('localhost')) {
+      site = 'https://sales-hazel-ten.vercel.app';
+    }
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { full_name: fullName },
-      redirectTo: site ? `${site}/account/set-password` : undefined
+      redirectTo: `${site}/account/set-password`
     });
     if (error) {
       const msg = /already been registered|already exists/i.test(error.message)
