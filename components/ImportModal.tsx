@@ -227,7 +227,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
               style={{ width: '100%' }}
             />
             <div className="small muted" style={{ marginTop: 8 }}>
-              Supported columns: <b>Email, Brand, Ownership / Sales Member, Source, Stage</b>
+              Supported columns: <b>Email, Company, Ownership / Sales Member, Source, Stage</b>
             </div>
           </div>
 
@@ -241,7 +241,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
                   <thead>
                     <tr>
                       <th>Email</th>
-                      <th>Brand</th>
+                      <th>Company</th>
                       <th>Allocated To</th>
                       <th>Stage</th>
                     </tr>

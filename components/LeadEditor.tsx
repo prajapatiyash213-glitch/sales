@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
+import { COMPANIES, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { describeActivity, fmtDateTime, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
 
@@ -25,7 +25,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
   const firstMember = people.find(p => p.role === 'member' && p.active);
   return {
-    email: '', brand: BRANDS[0], owner_id: isAdmin ? (firstMember?.id ?? me.id) : me.id,
+    email: '', brand: COMPANIES[0], owner_id: isAdmin ? (firstMember?.id ?? me.id) : me.id,
     lead_date: today(), lead_source: SOURCES[0], lead_stage: 'Discovery',
     connect_date: '', comments: '', followup2_date: '', followup2_comments: '', lead_status: 'New'
   };
@@ -90,7 +90,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
     const email = f.email.trim().toLowerCase();
     if (!email) e.email = 'Enter the lead\u2019s email.';
     else if (!EMAIL_RE.test(email)) e.email = 'This email looks incomplete. Check for a missing @ or domain.';
-    if (!f.brand.trim()) e.brand = 'Enter the brand or company name.';
+    if (!f.brand.trim()) e.brand = 'Enter the company name.';
     if (!f.lead_date) e.lead_date = 'Pick the date the lead came in.';
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -169,10 +169,10 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
               <input ref={emailRef} type="email" value={f.email} onChange={e => set('email', e.target.value)} placeholder="name@company.com" />
               {errors.email && <span className="err">{errors.email}</span>}
             </label>
-            <label className="f">Brand
-              <input type="text" list="brand-suggestions" value={f.brand} onChange={e => set('brand', e.target.value)} placeholder="ACOE or Tecnoprism" />
-              <datalist id="brand-suggestions">
-                {BRANDS.map(b => <option key={b} value={b} />)}
+            <label className="f">Company
+              <input type="text" list="company-suggestions" value={f.brand} onChange={e => set('brand', e.target.value)} placeholder="ACOE or Tecnoprism" />
+              <datalist id="company-suggestions">
+                {COMPANIES.map(b => <option key={b} value={b} />)}
               </datalist>
               {errors.brand && <span className="err">{errors.brand}</span>}
             </label>

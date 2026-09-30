@@ -58,7 +58,7 @@ function csvCell(v: unknown): string {
 
 export function downloadLeadsCsv(leads: Lead[], people: Profile[], filename = 'leads.csv') {
   const nameOf = (id: string) => people.find(p => p.id === id)?.full_name ?? '';
-  const header = ['Email','Brand','Ownership','Lead Date','Lead Source','Lead Stage','Date of Connect','Comments','Follow-up 2 Date','Comments','Lead Status'];
+  const header = ['Email','Company','Ownership','Lead Date','Lead Source','Lead Stage','Date of Connect','Comments','Follow-up 2 Date','Comments','Lead Status'];
   const rows = leads.map(l => [
     l.email, l.brand, nameOf(l.owner_id), l.lead_date, l.lead_source, l.lead_stage,
     l.connect_date, l.comments, l.followup2_date, l.followup2_comments, l.lead_status

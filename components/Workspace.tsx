@@ -163,7 +163,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           <button role="tab" aria-selected={view === 'table'} className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>List</button>
           <button role="tab" aria-selected={view === 'board'} className={view === 'board' ? 'on' : ''} onClick={() => setView('board')}>Board</button>
         </div>
-        <input type="search" placeholder="Search email, brand or comments" value={q} onChange={e => setQ(e.target.value)} aria-label="Search leads" />
+        <input type="search" placeholder="Search email, company or comments" value={q} onChange={e => setQ(e.target.value)} aria-label="Search leads" />
         {isAdmin && (
           <select value={owner} onChange={e => setOwner(e.target.value)} aria-label="Filter by owner">
             <option value="all">All members</option>
@@ -201,7 +201,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
             <div className="table-wrap leads">
               <table>
                 <thead><tr>
-                  <th>Email</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
+                  <th>Email</th><th>Company</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
                   <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
                 </tr></thead>
                 <tbody>
