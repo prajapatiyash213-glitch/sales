@@ -11,8 +11,8 @@ export async function requireProfile(): Promise<Profile> {
   if (demoRole === 'admin') {
     return {
       id: 'demo-admin-id',
-      email: 'testadmin@omniscope.com',
-      full_name: 'Test Admin',
+      email: 'yash.tecnoprism@gmail.com',
+      full_name: 'Yash Prajapati',
       role: 'admin',
       active: true,
       created_at: '2026-01-01T00:00:00Z'
@@ -22,8 +22,8 @@ export async function requireProfile(): Promise<Profile> {
   if (demoRole === 'member') {
     return {
       id: 'demo-sales-id',
-      email: 'sales@omniscope.com',
-      full_name: 'Sales Member',
+      email: 'shivamprajapati12sp12@gmail.com',
+      full_name: 'shivam p',
       role: 'member',
       active: true,
       created_at: '2026-01-01T00:00:00Z'

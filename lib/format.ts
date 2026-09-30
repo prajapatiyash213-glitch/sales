@@ -56,7 +56,7 @@ function csvCell(v: unknown): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-const GENERIC_NAMES = ['sales', 'sales member', 'member', 'admin', 'user', 'test admin', 'sales person'];
+const GENERIC_NAMES = ['sales', 'sales member', 'member', 'admin', 'user', 'test admin', 'sales person', 'sales@omniscope.com'];
 
 export function formatMemberName(p?: Profile | null, fallback?: string): string {
   if (!p) return fallback ?? 'Unknown';
@@ -64,15 +64,18 @@ export function formatMemberName(p?: Profile | null, fallback?: string): string 
   if (name && !GENERIC_NAMES.includes(name.toLowerCase())) {
     return name;
   }
-  if (p.email) {
+  if (p.email && p.email.toLowerCase() !== 'sales@omniscope.com') {
     const handle = p.email.split('@')[0];
-    return handle
+    const formatted = handle
       .split(/[\._]/)
       .filter(Boolean)
       .map(s => s.charAt(0).toUpperCase() + s.slice(1))
       .join(' ');
+    if (!GENERIC_NAMES.includes(formatted.toLowerCase())) {
+      return formatted;
+    }
   }
-  return name || 'Member';
+  return fallback || 'Team Member';
 }
 
 export function downloadLeadsCsv(leads: Lead[], people: Profile[], filename = 'leads.csv') {
