@@ -2,7 +2,7 @@
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { COMPANIES, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { downloadLeadsCsv, fmtDate, initials, isOverdue, stageColor, today } from '@/lib/format';
+import { downloadLeadsCsv, fmtDate, formatMemberName, initials, isOverdue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
 import ImportModal from './ImportModal';
@@ -60,13 +60,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
 
   const nameOf = (id: string) => {
     const p = people.find(item => item.id === id) ?? (id === me.id ? me : null);
-    if (!p) return 'Unknown';
-    if (p.full_name && p.full_name !== 'Sales Member') return p.full_name;
-    if (p.email) {
-      const handle = p.email.split('@')[0];
-      return handle.split(/[\._]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
-    }
-    return p.full_name || 'Member';
+    return formatMemberName(p, 'Unknown');
   };
   const members = people.filter(p => p.role === 'member' || leads.some(l => l.owner_id === p.id));
 

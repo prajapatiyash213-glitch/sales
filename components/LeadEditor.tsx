@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { COMPANIES, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { describeActivity, fmtDateTime, today } from '@/lib/format';
+import { describeActivity, fmtDateTime, formatMemberName, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
 
 type Form = {
@@ -179,12 +179,9 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
             <div className="grid2">
               <label className="f">Ownership
                 <select value={f.owner_id} disabled={!isAdmin} onChange={e => set('owner_id', e.target.value)}>
-                  {(isAdmin ? owners : [me]).map(p => {
-                    const name = p.full_name && p.full_name !== 'Sales Member'
-                      ? p.full_name
-                      : p.email ? p.email.split('@')[0].split(/[\._]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ') : 'Member';
-                    return <option key={p.id} value={p.id}>{name}</option>;
-                  })}
+                  {(isAdmin ? owners : [me]).map(p => (
+                    <option key={p.id} value={p.id}>{formatMemberName(p)}</option>
+                  ))}
                 </select>
               </label>
               <label className="f">Lead Date
