@@ -18,6 +18,13 @@ export async function requireProfile(): Promise<Profile> {
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-  if (!profile || !profile.active) redirect('/auth/signout?reason=inactive');
+  if (!profile || !profile.active) {
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignore
+    }
+    redirect('/login?error=inactive');
+  }
   return profile as Profile;
 }

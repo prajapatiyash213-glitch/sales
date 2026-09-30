@@ -10,18 +10,6 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isPublic = PUBLIC_PATHS.some(p => path === p || path.startsWith(p + '/'));
 
-  // Check Demo Cookie
-  const demoRole = request.cookies.get('omniscope_demo_role')?.value;
-  if (demoRole) {
-    if (path === '/login') {
-      const url = request.nextUrl.clone();
-      url.pathname = demoRole === 'admin' ? '/admin' : '/sales';
-      url.search = '';
-      return NextResponse.redirect(url);
-    }
-    return response;
-  }
-
   const isPlaceholder =
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL.includes('YOUR-PROJECT');
@@ -61,13 +49,6 @@ export async function middleware(request: NextRequest) {
     const redirect = NextResponse.redirect(url);
     response.cookies.getAll().forEach(c => redirect.cookies.set(c));
     return redirect;
-  }
-
-  if (user && path === '/login') {
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    url.search = '';
-    return NextResponse.redirect(url);
   }
 
   return response;
