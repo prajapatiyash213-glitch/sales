@@ -169,17 +169,22 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
               <input ref={emailRef} type="email" value={f.email} onChange={e => set('email', e.target.value)} placeholder="name@company.com" />
               {errors.email && <span className="err">{errors.email}</span>}
             </label>
-            <label className="f">Company
-              <input type="text" list="company-suggestions" value={f.brand} onChange={e => set('brand', e.target.value)} placeholder="ACOE or Tecnoprism" />
-              <datalist id="company-suggestions">
-                {COMPANIES.map(b => <option key={b} value={b} />)}
-              </datalist>
+            <label className="f">Brand / Company
+              <select value={f.brand} onChange={e => set('brand', e.target.value)}>
+                {COMPANIES.map(b => <option key={b} value={b}>{b}</option>)}
+                {!COMPANIES.includes(f.brand) && f.brand && <option value={f.brand}>{f.brand}</option>}
+              </select>
               {errors.brand && <span className="err">{errors.brand}</span>}
             </label>
             <div className="grid2">
               <label className="f">Ownership
                 <select value={f.owner_id} disabled={!isAdmin} onChange={e => set('owner_id', e.target.value)}>
-                  {(isAdmin ? owners : [me]).map(p => <option key={p.id} value={p.id}>{p.full_name || p.email}</option>)}
+                  {(isAdmin ? owners : [me]).map(p => {
+                    const name = p.full_name && p.full_name !== 'Sales Member'
+                      ? p.full_name
+                      : p.email ? p.email.split('@')[0].split(/[\._]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ') : 'Member';
+                    return <option key={p.id} value={p.id}>{name}</option>;
+                  })}
                 </select>
               </label>
               <label className="f">Lead Date

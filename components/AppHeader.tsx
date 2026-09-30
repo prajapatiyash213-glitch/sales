@@ -2,6 +2,17 @@ import type { Profile } from '@/lib/types';
 import { initials } from '@/lib/format';
 
 export default function AppHeader({ profile }: { profile: Profile }) {
+  const displayName =
+    profile.full_name && profile.full_name !== 'Sales Member'
+      ? profile.full_name
+      : profile.email
+      ? profile.email
+          .split('@')[0]
+          .split(/[\._]/)
+          .map(s => s.charAt(0).toUpperCase() + s.slice(1))
+          .join(' ')
+      : 'User';
+
   return (
     <header className="top">
       <div className="wrap top-inner">
@@ -16,8 +27,8 @@ export default function AppHeader({ profile }: { profile: Profile }) {
           <span className="brand-name">OmniScope</span>
         </div>
         <div className="me">
-          <span className="avatar">{initials(profile.full_name || profile.email)}</span>
-          <span className="name">{profile.full_name || profile.email}</span>
+          <span className="avatar">{initials(displayName)}</span>
+          <span className="name">{displayName}</span>
           <span className={`role-tag ${profile.role}`}>{profile.role === 'admin' ? 'Admin' : 'Sales'}</span>
           <form action="/auth/signout" method="post">
             <button className="btn logout-btn" type="submit">Log out</button>

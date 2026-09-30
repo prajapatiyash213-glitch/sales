@@ -1,7 +1,7 @@
 'use client';
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { SOURCES, STAGES, STATUSES } from '@/lib/constants';
+import { COMPANIES, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { downloadLeadsCsv, fmtDate, initials, isOverdue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
@@ -49,6 +49,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [view, setView] = useState<'table' | 'board'>('table');
   const [q, setQ] = useState('');
   const [owner, setOwner] = useState(initialOwner ?? 'all');
+  const [brandFilter, setBrandFilter] = useState('all');
   const [source, setSource] = useState('all');
   const [status, setStatus] = useState('all');
   const [stage, setStage] = useState<string | null>(null);
@@ -57,7 +58,16 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [importOpen, setImportOpen] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
-  const nameOf = (id: string) => people.find(p => p.id === id)?.full_name ?? (id === me.id ? me.full_name : 'Unknown');
+  const nameOf = (id: string) => {
+    const p = people.find(item => item.id === id) ?? (id === me.id ? me : null);
+    if (!p) return 'Unknown';
+    if (p.full_name && p.full_name !== 'Sales Member') return p.full_name;
+    if (p.email) {
+      const handle = p.email.split('@')[0];
+      return handle.split(/[\._]/).map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' ');
+    }
+    return p.full_name || 'Member';
+  };
   const members = people.filter(p => p.role === 'member' || leads.some(l => l.owner_id === p.id));
 
   // Leads scoped by owner filter (Sales members see their own leads; Admins see all or filtered owner)
@@ -72,12 +82,13 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
     const needle = q.trim().toLowerCase();
     return scoped.filter(l =>
       (!stage || l.lead_stage === stage) &&
+      (brandFilter === 'all' || l.brand === brandFilter) &&
       (source === 'all' || l.lead_source === source) &&
       (status === 'all' || l.lead_status === status) &&
       (!overdueOnly || isOverdue(l)) &&
       (!needle || [l.email, l.brand, l.comments, l.followup2_comments].join(' ').toLowerCase().includes(needle))
     );
-  }, [scoped, stage, source, status, overdueOnly, q]);
+  }, [scoped, stage, brandFilter, source, status, overdueOnly, q]);
 
   const overdueCount = scoped.filter(isOverdue).length;
   const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation'].includes(l.lead_stage)).length;
@@ -167,9 +178,13 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         {isAdmin && (
           <select value={owner} onChange={e => setOwner(e.target.value)} aria-label="Filter by owner">
             <option value="all">All members</option>
-            {members.map(m => <option key={m.id} value={m.id}>{m.full_name || m.email}</option>)}
+            {members.map(m => <option key={m.id} value={m.id}>{nameOf(m.id)}</option>)}
           </select>
         )}
+        <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)} aria-label="Filter by brand">
+          <option value="all">All brands</option>
+          {COMPANIES.map(b => <option key={b} value={b}>{b}</option>)}
+        </select>
         <select value={source} onChange={e => setSource(e.target.value)} aria-label="Filter by source">
           <option value="all">All sources</option>
           {sources.map(s => <option key={s}>{s}</option>)}
