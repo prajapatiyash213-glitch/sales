@@ -5,31 +5,6 @@ import { createClient } from './supabase/server';
 import type { Profile } from './types';
 
 export async function requireProfile(): Promise<Profile> {
-  const cookieStore = cookies();
-  const demoRole = cookieStore.get('omniscope_demo_role')?.value;
-
-  if (demoRole === 'admin') {
-    return {
-      id: 'demo-admin-id',
-      email: 'yash.tecnoprism@gmail.com',
-      full_name: 'Yash Prajapati',
-      role: 'admin',
-      active: true,
-      created_at: '2026-01-01T00:00:00Z'
-    };
-  }
-
-  if (demoRole === 'member') {
-    return {
-      id: 'demo-sales-id',
-      email: 'shivamprajapati12sp12@gmail.com',
-      full_name: 'shivam p',
-      role: 'member',
-      active: true,
-      created_at: '2026-01-01T00:00:00Z'
-    };
-  }
-
   const isPlaceholder =
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL.includes('YOUR-PROJECT');

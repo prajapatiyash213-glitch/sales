@@ -89,9 +89,8 @@ const INITIAL_DEMO_PROFILES = [
 ];
 
 function isDemoMode() {
-  if (typeof window === 'undefined') return true;
+  if (typeof window === 'undefined') return false;
   return (
-    document.cookie.includes('omniscope_demo_role=') ||
     !process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.NEXT_PUBLIC_SUPABASE_URL.includes('YOUR-PROJECT')
   );

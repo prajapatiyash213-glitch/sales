@@ -17,35 +17,21 @@ export default function LoginForm({ next, notice }: { next?: string; notice?: st
     setBusy(true);
     setError('');
 
-    const isPlaceholder =
-      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-      process.env.NEXT_PUBLIC_SUPABASE_URL.includes('YOUR-PROJECT');
-
     const trimmedEmail = email.trim().toLowerCase();
-
-    if (isPlaceholder) {
-      handleDemoLogin(trimmedEmail);
-      return;
-    }
 
     try {
       const { error } = await createClient().auth.signInWithPassword({ email: trimmedEmail, password });
       if (error) {
-        handleDemoLogin(trimmedEmail);
+        setError(error.message || 'Invalid email or password.');
+        setBusy(false);
         return;
       }
       router.replace(safeNext(next));
       router.refresh();
-    } catch {
-      handleDemoLogin(trimmedEmail);
+    } catch (err: any) {
+      setError(err?.message || 'Could not sign in. Please check your internet connection.');
+      setBusy(false);
     }
-  }
-
-  function handleDemoLogin(userEmail: string) {
-    const role = userEmail.includes('admin') ? 'admin' : 'member';
-    document.cookie = `omniscope_demo_role=${role}; path=/; max-age=86400`;
-    router.replace(role === 'admin' ? '/admin' : '/sales');
-    router.refresh();
   }
 
   return (

@@ -17,16 +17,6 @@ export default async function AdminPage() {
   const me = await requireProfile();
   if (me.role !== 'admin') redirect('/sales');
 
-  const demoRole = cookies().get('omniscope_demo_role')?.value;
-  if (demoRole) {
-    return (
-      <>
-        <AppHeader profile={me} />
-        <main className="wrap"><AdminShell me={me} people={DEMO_PEOPLE} /></main>
-      </>
-    );
-  }
-
   const { data } = await createClient().from('profiles').select('*').order('full_name');
   const people = (data as Profile[]) ?? [me];
 
