@@ -159,15 +159,22 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
 
     try {
       const supabase = createClient();
-      const insertData = parsed.map(l => ({
-        email: l.email.toLowerCase(),
-        brand: l.brand,
-        owner_id: l.owner_id,
-        lead_source: l.lead_source,
-        lead_stage: l.lead_stage,
-        lead_status: l.lead_status,
-        comments: l.comments || undefined
-      }));
+      const insertData = parsed.map(l => {
+        let finalStatus = l.lead_status || 'Warm';
+        if (l.lead_stage === 'Won') finalStatus = 'Converted';
+        else if (l.lead_stage === 'Lost') finalStatus = 'Dropped';
+        else if (finalStatus === 'Converted' || finalStatus === 'Dropped') finalStatus = 'Warm';
+
+        return {
+          email: l.email.toLowerCase(),
+          brand: l.brand,
+          owner_id: l.owner_id,
+          lead_source: l.lead_source,
+          lead_stage: l.lead_stage,
+          lead_status: finalStatus,
+          comments: l.comments || undefined
+        };
+      });
 
       const { error } = await supabase.from('leads').insert(insertData);
       if (error) {
