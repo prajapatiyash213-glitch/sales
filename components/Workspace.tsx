@@ -5,6 +5,7 @@ import { SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { downloadLeadsCsv, fmtDate, initials, isOverdue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
+import ImportModal from './ImportModal';
 import { useToast } from './Toast';
 
 interface Props {
@@ -36,6 +37,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [stage, setStage] = useState<string | null>(null);
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [editor, setEditor] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
+  const [importOpen, setImportOpen] = useState(false);
   const [dragOver, setDragOver] = useState<string | null>(null);
 
   const nameOf = (id: string) => people.find(p => p.id === id)?.full_name ?? (id === me.id ? me.full_name : 'Unknown');
@@ -163,6 +165,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           Overdue follow-ups ({overdueCount})
         </button>
         <button className="btn" onClick={() => downloadLeadsCsv(filtered, people.length ? people : [me], `leads-${today()}.csv`)}>Export CSV</button>
+        {isAdmin && <button className="btn" onClick={() => setImportOpen(true)}>📥 Import Excel / CSV</button>}
         <button className="btn primary" onClick={() => openLead(null)}>+ Add lead</button>
       </div>
 
@@ -255,6 +258,13 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         isAdmin={isAdmin}
         onClose={() => setEditor(e => ({ ...e, open: false }))}
         onSaved={msg => { toast.show(msg); reload(); }}
+      />
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        me={me}
+        people={people}
+        reload={reload}
       />
       {toast.node}
     </>

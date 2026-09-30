@@ -1,0 +1,231 @@
+'use client';
+import { useState, type ChangeEvent } from 'react';
+import * as XLSX from 'xlsx';
+import { createClient } from '@/lib/supabase/client';
+import type { Profile } from '@/lib/types';
+import { useToast } from './Toast';
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  me: Profile;
+  people: Profile[];
+  reload: () => Promise<void>;
+}
+
+interface ParsedLead {
+  email: string;
+  brand: string;
+  owner_id: string;
+  owner_name: string;
+  lead_source: string;
+  lead_stage: string;
+  lead_status: string;
+  comments?: string;
+  date_of_connect?: string;
+  followup2_date?: string;
+  followup2_comments?: string;
+}
+
+export default function ImportModal({ open, onClose, me, people, reload }: Props) {
+  const toast = useToast();
+  const [file, setFile] = useState<File | null>(null);
+  const [parsed, setParsed] = useState<ParsedLead[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  if (!open) return null;
+
+  function findMember(ownerInput: string): Profile | null {
+    if (!ownerInput) return null;
+    const clean = ownerInput.trim().toLowerCase();
+    return (
+      people.find(
+        p =>
+          p.full_name.trim().toLowerCase() === clean ||
+          p.email.trim().toLowerCase() === clean ||
+          p.full_name.trim().toLowerCase().includes(clean) ||
+          clean.includes(p.full_name.trim().toLowerCase())
+      ) ?? null
+    );
+  }
+
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    setFile(selected);
+    setError('');
+
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const sheetName = wb.SheetNames[0];
+        const ws = wb.Sheets[sheetName];
+        const rawData: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        if (!rawData.length) {
+          setError('The selected file contains no data.');
+          setParsed([]);
+          return;
+        }
+
+        const leadsList: ParsedLead[] = [];
+
+        rawData.forEach(row => {
+          // Flexible key lookup
+          const getCol = (names: string[]) => {
+            for (const key of Object.keys(row)) {
+              if (names.some(n => key.trim().toLowerCase() === n.toLowerCase())) {
+                return String(row[key]).trim();
+              }
+            }
+            return '';
+          };
+
+          const email = getCol(['email', 'work email', 'email address', 'lead email']);
+          const brand = getCol(['brand', 'company', 'company name', 'brand name', 'client']);
+          const ownerRaw = getCol(['owner', 'ownership', 'owner name', 'sales member', 'assigned to', 'allocated to']);
+          const source = getCol(['source', 'lead source', 'channel']) || 'Excel Import';
+          const stage = getCol(['stage', 'lead stage']) || 'New';
+          const status = getCol(['status', 'lead status']) || 'Warm';
+          const comments = getCol(['comments', 'notes']);
+
+          if (!email || !brand) return; // Skip invalid rows
+
+          const matchedOwner = findMember(ownerRaw);
+          const allocatedOwner = matchedOwner ?? me;
+
+          leadsList.push({
+            email,
+            brand,
+            owner_id: allocatedOwner.id,
+            owner_name: allocatedOwner.full_name || allocatedOwner.email,
+            lead_source: source,
+            lead_stage: stage,
+            lead_status: status,
+            comments
+          });
+        });
+
+        if (!leadsList.length) {
+          setError('Could not find valid Email & Brand columns in the file.');
+          setParsed([]);
+        } else {
+          setParsed(leadsList);
+        }
+      } catch (err) {
+        setError('Could not parse Excel/CSV file: ' + (err as Error).message);
+      }
+    };
+    reader.readAsBinaryString(selected);
+  }
+
+  async function handleImport() {
+    if (!parsed.length) return;
+    setBusy(true);
+    setError('');
+
+    try {
+      const supabase = createClient();
+      const insertData = parsed.map(l => ({
+        email: l.email.toLowerCase(),
+        brand: l.brand,
+        owner_id: l.owner_id,
+        lead_source: l.lead_source,
+        lead_stage: l.lead_stage,
+        lead_status: l.lead_status,
+        comments: l.comments || undefined
+      }));
+
+      const { error } = await supabase.from('leads').insert(insertData);
+      if (error) {
+        setError(error.message);
+        setBusy(false);
+        return;
+      }
+
+      toast.show(`Successfully imported & allocated ${parsed.length} leads!`);
+      await reload();
+      setBusy(false);
+      onClose();
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="scrim open" onClick={onClose} />
+      <div className="drawer open" style={{ width: 'min(640px, 100%)' }}>
+        <div className="dr-head">
+          <h2>Import & Auto-Allocate Leads</h2>
+          <button className="btn ghost" onClick={onClose}>✕</button>
+        </div>
+
+        <div className="dr-body">
+          <p className="muted" style={{ marginBottom: 16 }}>
+            Upload an Excel (`.xlsx`, `.xls`) or CSV file. The system will automatically match the <b>Ownership / Sales Member</b> column to your team members and assign each lead automatically!
+          </p>
+
+          {error && <div className="alert" role="alert">{error}</div>}
+
+          <div style={{ background: '#F8FAFC', border: '2px dashed #CBD5E1', borderRadius: 16, padding: 24, textAlign: 'center', marginBottom: 20 }}>
+            <input
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              onChange={handleFileChange}
+              style={{ width: '100%' }}
+            />
+            <div className="small muted" style={{ marginTop: 8 }}>
+              Supported columns: <b>Email, Brand, Ownership / Sales Member, Source, Stage</b>
+            </div>
+          </div>
+
+          {parsed.length > 0 && (
+            <div>
+              <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>
+                Preview ({parsed.length} leads found)
+              </h3>
+              <div className="table-wrap" style={{ maxHeight: 280, overflowY: 'auto' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Email</th>
+                      <th>Brand</th>
+                      <th>Allocated To</th>
+                      <th>Stage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsed.map((item, idx) => (
+                      <tr key={idx}>
+                        <td>{item.email}</td>
+                        <td><strong>{item.brand}</strong></td>
+                        <td>
+                          <span className="role-tag admin" style={{ background: '#E0F2FE', color: '#0369A1' }}>
+                            👤 {item.owner_name}
+                          </span>
+                        </td>
+                        <td>{item.lead_stage}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="dr-foot">
+          <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+          <button className="btn primary" onClick={handleImport} disabled={!parsed.length || busy}>
+            {busy ? 'Importing…' : `Import & Allocate ${parsed.length} Leads`}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
