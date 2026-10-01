@@ -13,8 +13,14 @@ export async function GET(request: NextRequest) {
   if (token_hash && type) {
     const supabase = createClient();
     await supabase.auth.signOut();
-    const { error } = await supabase.auth.verifyOtp({ type, token_hash });
-    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    const { data, error } = await supabase.auth.verifyOtp({ type, token_hash });
+    if (!error) {
+      const redirectUrl = new URL(`${origin}${next}`);
+      if (data?.user?.email) {
+        redirectUrl.searchParams.set('email', data.user.email);
+      }
+      return NextResponse.redirect(redirectUrl.toString());
+    }
   }
   return NextResponse.redirect(`${origin}/login?error=link`);
 }

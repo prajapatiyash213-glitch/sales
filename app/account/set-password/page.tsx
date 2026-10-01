@@ -19,69 +19,85 @@ export default function SetPasswordPage() {
       try {
         const search = window.location.search;
         const params = new URLSearchParams(search);
+        const emailParam = params.get('email');
         const code = params.get('code');
         const tokenHash = params.get('token_hash');
         const type = (params.get('type') as any) || 'invite';
 
-        if (code || tokenHash) {
-          // Clear any existing active session from another user (e.g., admin logged in on same browser)
-          await supabase.auth.signOut();
-          if (code) {
-            const { error } = await supabase.auth.exchangeCodeForSession(code);
-            if (error) {
-              setError('This invitation link has expired or was already used. Please request a new invite.');
-              setChecking(false);
-              return;
-            }
-            window.history.replaceState(null, '', '/account/set-password');
-          } else if (tokenHash) {
-            const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-            if (error) {
-              setError('This invitation link has expired or was already used. Please request a new invite.');
-              setChecking(false);
-              return;
-            }
-            window.history.replaceState(null, '', '/account/set-password');
-          }
+        if (emailParam) {
+          setEmail(emailParam);
         }
 
-        // Fetch user & session
-        const { data: { user } } = await supabase.auth.getUser();
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session || user) {
-          const activeEmail = user?.email || session?.user?.email;
-          if (activeEmail) setEmail(activeEmail);
+        // Scenario 1: Arrived with code or token_hash in URL
+        if (code || tokenHash) {
+          await supabase.auth.signOut();
+          let userEmail = '';
+          if (code) {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              setError('This invitation link has expired or was already used. Please request a new invite.');
+              setChecking(false);
+              return;
+            }
+            userEmail = data.user?.email || '';
+          } else if (tokenHash) {
+            const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+            if (error) {
+              setError('This invitation link has expired or was already used. Please request a new invite.');
+              setChecking(false);
+              return;
+            }
+            userEmail = data.user?.email || '';
+          }
+          const { data: { user } } = await supabase.auth.getUser();
+          const finalEmail = userEmail || user?.email || emailParam || '';
+          if (finalEmail) setEmail(finalEmail);
           setHasSession(true);
           setChecking(false);
           return;
         }
 
-        // Listen for auth state change in case Supabase client is processing access_token in URL hash
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
-          if (session) {
-            if (session.user?.email) setEmail(session.user.email);
-            setHasSession(true);
-            setError('');
-            setChecking(false);
-          }
-        });
-
-        // Small delay to allow hash parsing or session storage hydration
-        const timer = setTimeout(async () => {
-          const { data: { session: s } } = await supabase.auth.getSession();
-          if (s) {
-            if (s.user?.email) setEmail(s.user.email);
-            setHasSession(true);
-          } else if (!code && !tokenHash) {
-            setError('No active invite session found. Please open the link directly from your invitation email.');
-          }
+        // Scenario 2: Arrived via /auth/confirm redirect with ?email=...
+        if (emailParam) {
+          const { data: { user } } = await supabase.auth.getUser();
+          const { data: { session } } = await supabase.auth.getSession();
+          const activeEmail = user?.email || session?.user?.email || emailParam;
+          setEmail(activeEmail);
+          setHasSession(true);
           setChecking(false);
-        }, 600);
+          return;
+        }
 
-        return () => {
-          subscription.unsubscribe();
-          clearTimeout(timer);
-        };
+        // Scenario 3: Arrived via hash fragment (#access_token=...)
+        if (window.location.hash.includes('access_token')) {
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
+            if (session?.user?.email) {
+              setEmail(session.user.email);
+              setHasSession(true);
+              setError('');
+              setChecking(false);
+            }
+          });
+          const timer = setTimeout(async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user?.email) {
+              setEmail(user.email);
+              setHasSession(true);
+            } else {
+              setError('No active invite session found. Please open the link directly from your invitation email.');
+            }
+            setChecking(false);
+          }, 800);
+          return () => {
+            subscription.unsubscribe();
+            clearTimeout(timer);
+          };
+        }
+
+        // Scenario 4: Opened /account/set-password directly without an invite link token
+        setError('No active invite session found. Please open the link directly from your invitation email.');
+        setHasSession(false);
+        setChecking(false);
       } catch (err: any) {
         setError(err?.message || 'Could not verify invitation session.');
         setChecking(false);
