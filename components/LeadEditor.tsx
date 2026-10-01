@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { describeActivity, fmtDateTime, formatMemberName, normalizeStatusValue, today } from '@/lib/format';
+import { describeActivity, fmtDateTime, formatMemberName, normalizeStageValue, normalizeStatusValue, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
 
 type Form = {
@@ -34,7 +34,7 @@ function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
 function fromLead(l: Lead): Form {
   return {
     email: l.email, company: l.company ?? '', brand: l.brand || BRANDS[0], owner_id: l.owner_id, lead_date: l.lead_date, lead_source: l.lead_source,
-    lead_stage: l.lead_stage, connect_date: l.connect_date ?? '', comments: l.comments ?? '',
+    lead_stage: normalizeStageValue(l.lead_stage), connect_date: l.connect_date ?? '', comments: l.comments ?? '',
     followup2_date: l.followup2_date ?? '', followup2_comments: l.followup2_comments ?? '', lead_status: normalizeStatusValue(l.lead_status)
   };
 }

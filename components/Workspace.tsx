@@ -2,7 +2,7 @@
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { downloadLeadsCsv, fmtDate, formatMemberName, initials, isOverdue, normalizeStatusValue, stageColor, today } from '@/lib/format';
+import { downloadLeadsCsv, fmtDate, formatMemberName, initials, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
 import ImportModal from './ImportModal';
@@ -20,7 +20,8 @@ interface Props {
 }
 
 function StagePill({ stage }: { stage: string }) {
-  return <span className="pill"><span className="dot" style={{ background: stageColor(stage) }} />{stage}</span>;
+  const norm = normalizeStageValue(stage);
+  return <span className="pill"><span className="dot" style={{ background: stageColor(norm) }} />{norm}</span>;
 }
 function statusClass(st: string): string {
   const norm = normalizeStatusValue(st);
@@ -71,7 +72,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return scoped.filter(l =>
-      (!stage || l.lead_stage === stage) &&
+      (!stage || normalizeStageValue(l.lead_stage) === stage) &&
       (brandFilter === 'all' || l.brand === brandFilter) &&
       (source === 'all' || l.lead_source === source) &&
       (status === 'all' || normalizeStatusValue(l.lead_status) === status) &&
@@ -81,9 +82,9 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   }, [scoped, stage, brandFilter, source, status, overdueOnly, q]);
 
   const overdueCount = scoped.filter(isOverdue).length;
-  const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation'].includes(l.lead_stage)).length;
-  const wonCount = scoped.filter(l => ['Closed Won', 'Client', 'Won'].includes(l.lead_stage)).length;
-  const activeCount = scoped.filter(l => !['Closed Lost', 'Lost'].includes(l.lead_stage) && !['Junk Lead', 'Closed Lost', 'Postponed', 'Dropped'].includes(normalizeStatusValue(l.lead_status))).length;
+  const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation'].includes(normalizeStageValue(l.lead_stage))).length;
+  const wonCount = scoped.filter(l => ['Closed Won', 'Client'].includes(normalizeStageValue(l.lead_stage))).length;
+  const activeCount = scoped.filter(l => !['Closed Lost'].includes(normalizeStageValue(l.lead_stage)) && !['Junk Lead', 'Postponed'].includes(normalizeStatusValue(l.lead_status))).length;
   const winRate = scoped.length ? Math.round((wonCount / scoped.length) * 100) : 0;
   const sources = [...new Set([...SOURCES, ...leads.map(l => l.lead_source)])];
 
@@ -139,7 +140,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
 
       <div className={`strip ${stage && view === 'table' ? 'filtered' : ''}`}>
         {STAGES.map(s => {
-          const n = scoped.filter(l => l.lead_stage === s.key).length;
+          const n = scoped.filter(l => normalizeStageValue(l.lead_stage) === s.key).length;
           return (
             <button key={s.key} className={`seg ${stage === s.key ? 'on' : ''}`}
               style={{ background: s.color, flexGrow: Math.max(n, 0.6) }}

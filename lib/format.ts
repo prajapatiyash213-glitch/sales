@@ -13,6 +13,23 @@ export function normalizeStatusValue(status: string | null | undefined): string 
   return 'New';
 }
 
+export function normalizeStageValue(stage: string | null | undefined): string {
+  if (!stage) return 'Discovery';
+  const validKeys = STAGES.map(s => s.key);
+  if (validKeys.includes(stage)) return stage;
+  const clean = stage.trim().toLowerCase();
+  if (clean === 'new' || clean.includes('disco')) return 'Discovery';
+  if (clean === 'contacted' || clean.includes('meeting') || clean.includes('quali')) return 'Qualified';
+  if (clean.includes('opport')) return 'Opportunity';
+  if (clean.includes('pilot') || clean.includes('poc')) return 'Pilot/POC';
+  if (clean.includes('proposal sent') || clean.includes('propos')) return 'Proposal';
+  if (clean === 'negotiation' || clean.includes('nego') || clean.includes('value')) return 'Value Negotiation';
+  if (clean === 'lost' || clean.includes('closed lost')) return 'Closed Lost';
+  if (clean === 'won' || clean.includes('closed won')) return 'Closed Won';
+  if (clean.includes('client') || clean.includes('customer')) return 'Client';
+  return 'Discovery';
+}
+
 export function today(): string {
   // local date in YYYY-MM-DD
   return new Date().toLocaleDateString('en-CA');
@@ -33,7 +50,8 @@ export function initials(name: string): string {
 }
 
 export function stageColor(stage: string): string {
-  return STAGES.find(s => s.key === stage)?.color ?? 'var(--muted)';
+  const norm = normalizeStageValue(stage);
+  return STAGES.find(s => s.key === norm)?.color ?? 'var(--muted)';
 }
 
 export function isOverdue(l: Lead): boolean {
