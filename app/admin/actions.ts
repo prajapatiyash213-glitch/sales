@@ -33,7 +33,7 @@ export async function inviteMember(input: { email: string; fullName: string; rol
     }
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { full_name: fullName },
-      redirectTo: `${site}/account/set-password`
+      redirectTo: `${site}/auth/confirm?next=/account/set-password`
     });
     if (error) {
       const msg = /already been registered|already exists/i.test(error.message)

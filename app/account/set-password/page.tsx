@@ -23,28 +23,34 @@ export default function SetPasswordPage() {
         const tokenHash = params.get('token_hash');
         const type = (params.get('type') as any) || 'invite';
 
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            setError('This invitation link has expired or was already used. Please request a new invite.');
-            setChecking(false);
-            return;
+        if (code || tokenHash) {
+          // Clear any existing active session from another user (e.g., admin logged in on same browser)
+          await supabase.auth.signOut();
+          if (code) {
+            const { error } = await supabase.auth.exchangeCodeForSession(code);
+            if (error) {
+              setError('This invitation link has expired or was already used. Please request a new invite.');
+              setChecking(false);
+              return;
+            }
+            window.history.replaceState(null, '', '/account/set-password');
+          } else if (tokenHash) {
+            const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+            if (error) {
+              setError('This invitation link has expired or was already used. Please request a new invite.');
+              setChecking(false);
+              return;
+            }
+            window.history.replaceState(null, '', '/account/set-password');
           }
-          window.history.replaceState(null, '', '/account/set-password');
-        } else if (tokenHash) {
-          const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
-          if (error) {
-            setError('This invitation link has expired or was already used. Please request a new invite.');
-            setChecking(false);
-            return;
-          }
-          window.history.replaceState(null, '', '/account/set-password');
         }
 
-        // Check active session
+        // Fetch user & session
+        const { data: { user } } = await supabase.auth.getUser();
         const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          if (session.user?.email) setEmail(session.user.email);
+        if (session || user) {
+          const activeEmail = user?.email || session?.user?.email;
+          if (activeEmail) setEmail(activeEmail);
           setHasSession(true);
           setChecking(false);
           return;
