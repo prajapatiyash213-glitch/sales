@@ -1,11 +1,10 @@
 'use client';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 export default function SetPasswordPage() {
-  const router = useRouter();
+  const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
   const [pw2, setPw2] = useState('');
   const [error, setError] = useState('');
@@ -45,6 +44,7 @@ export default function SetPasswordPage() {
         // Check active session
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
+          if (session.user?.email) setEmail(session.user.email);
           setHasSession(true);
           setChecking(false);
           return;
@@ -53,6 +53,7 @@ export default function SetPasswordPage() {
         // Listen for auth state change in case Supabase client is processing access_token in URL hash
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: string, session: any) => {
           if (session) {
+            if (session.user?.email) setEmail(session.user.email);
             setHasSession(true);
             setError('');
             setChecking(false);
@@ -63,6 +64,7 @@ export default function SetPasswordPage() {
         const timer = setTimeout(async () => {
           const { data: { session: s } } = await supabase.auth.getSession();
           if (s) {
+            if (s.user?.email) setEmail(s.user.email);
             setHasSession(true);
           } else if (!code && !tokenHash) {
             setError('No active invite session found. Please open the link directly from your invitation email.');
@@ -99,10 +101,13 @@ export default function SetPasswordPage() {
     }
 
     const { error } = await supabase.auth.updateUser({ password: pw });
-    setBusy(false);
-    if (error) return setError(error.message);
-    router.replace('/');
-    router.refresh();
+    if (error) {
+      setBusy(false);
+      return setError(error.message);
+    }
+
+    // Seamlessly navigate to dashboard
+    window.location.href = '/';
   }
 
   return (
@@ -124,13 +129,18 @@ export default function SetPasswordPage() {
           </div>
         ) : (
           <>
+            {email && (
+              <label className="f">Email address
+                <input type="email" value={email} disabled readOnly style={{ opacity: 0.8, cursor: 'not-allowed', backgroundColor: '#f5f5f7' }} />
+              </label>
+            )}
             <label className="f">New password
-              <input type="password" autoComplete="new-password" required value={pw} onChange={e => setPw(e.target.value)} />
+              <input type="password" autoComplete="new-password" required value={pw} onChange={e => setPw(e.target.value)} placeholder="Minimum 8 characters" />
             </label>
             <label className="f">Confirm password
-              <input type="password" autoComplete="new-password" required value={pw2} onChange={e => setPw2(e.target.value)} />
+              <input type="password" autoComplete="new-password" required value={pw2} onChange={e => setPw2(e.target.value)} placeholder="Re-enter new password" />
             </label>
-            <button className="btn primary block" disabled={busy}>{busy ? 'Saving…' : 'Save password'}</button>
+            <button className="btn primary block" disabled={busy}>{busy ? 'Saving & signing in…' : 'Save password & open dashboard'}</button>
           </>
         )}
       </form>
