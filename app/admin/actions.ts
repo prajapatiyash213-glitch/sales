@@ -36,15 +36,41 @@ export async function inviteMember(input: { email: string; fullName: string; rol
       redirectTo: `${site}/auth/confirm?next=/account/set-password`
     });
     if (error) {
-      const msg = /already been registered|already exists/i.test(error.message)
-        ? 'This email already has an account.' : error.message;
-      return { ok: false, message: msg };
+      if (/already been registered|already exists/i.test(error.message)) {
+        const { error: resendErr } = await admin.auth.resetPasswordForEmail(email, {
+          redirectTo: `${site}/auth/confirm?next=/account/set-password`
+        });
+        if (resendErr) return { ok: false, message: resendErr.message };
+        return { ok: true, message: `Fresh invitation email sent to ${email}` };
+      }
+      return { ok: false, message: error.message };
     }
     if (data.user) {
       await admin.from('profiles').update({ full_name: fullName, role }).eq('id', data.user.id);
     }
     revalidatePath('/admin');
     return { ok: true, message: `Invite sent to ${email}` };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}
+
+export async function resendMemberInvite(email: string): Promise<Result> {
+  try {
+    await assertAdmin();
+    const cleanEmail = email.trim().toLowerCase();
+    const admin = createAdminClient();
+    let site = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!site || site.includes('localhost')) {
+      site = 'https://sales-hazel-ten.vercel.app';
+    }
+
+    const { error } = await admin.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${site}/auth/confirm?next=/account/set-password`
+    });
+
+    if (error) return { ok: false, message: error.message };
+    return { ok: true, message: `Fresh invitation email sent to ${cleanEmail}` };
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }

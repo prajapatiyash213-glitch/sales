@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { inviteMember, updateMember } from '@/app/admin/actions';
+import { inviteMember, resendMemberInvite, updateMember } from '@/app/admin/actions';
 import { formatMemberName, initials } from '@/lib/format';
 import type { Lead, Profile, Role } from '@/lib/types';
 import { useToast } from './Toast';
@@ -24,6 +24,14 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
       setEmail(''); setName(''); setRole('member');
       toast.show(r.message);
       router.refresh();
+    });
+  }
+
+  function resend(targetEmail: string) {
+    start(async () => {
+      const r = await resendMemberInvite(targetEmail);
+      toast.show(r.message);
+      if (r.ok) router.refresh();
     });
   }
 
@@ -73,15 +81,20 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
                   </select>
                 </td>
                 <td>{leads.filter(l => l.owner_id === p.id).length}</td>
-                <td>
+                <td style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {p.id === me.id ? <span className="muted">Active</span> : (
-                    <button className={`btn ${p.active ? 'danger' : ''}`} disabled={pending}
-                      onClick={() => {
-                        if (p.active && !confirm(`Deactivate ${p.full_name}? They will be signed out and blocked. Their leads stay; reassign them from the lead editor.`)) return;
-                        change(p.id, { active: !p.active });
-                      }}>
-                      {p.active ? 'Deactivate' : 'Reactivate'}
-                    </button>
+                    <>
+                      <button type="button" className="btn outline" disabled={pending} onClick={() => resend(p.email)}>
+                        Resend invite
+                      </button>
+                      <button type="button" className={`btn ${p.active ? 'danger' : ''}`} disabled={pending}
+                        onClick={() => {
+                          if (p.active && !confirm(`Deactivate ${p.full_name}? They will be signed out and blocked. Their leads stay; reassign them from the lead editor.`)) return;
+                          change(p.id, { active: !p.active });
+                        }}>
+                        {p.active ? 'Deactivate' : 'Reactivate'}
+                      </button>
+                    </>
                   )}
                 </td>
               </tr>
