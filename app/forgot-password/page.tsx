@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="login">
       <form className="login-box" onSubmit={onSubmit}>
-        <div className="brand"><span className="brand-mark" />OmniScope</div>
+        <div className="brand"><span className="brand-mark" />Tecnoprism Sales</div>
         <h1>Reset your password</h1>
         {sent ? (
           <p>If an account exists for <strong>{email}</strong>, a reset link is on its way. Open it on this device to set a new password.</p>

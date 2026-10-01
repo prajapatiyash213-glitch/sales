@@ -45,7 +45,7 @@ export default function LoginForm({ next, notice }: { next?: string; notice?: st
               <circle cx="12" cy="12" r="1.5" fill="currentColor" />
             </svg>
           </span>
-          OmniScope
+          Tecnoprism Sales
         </div>
         <h1>Sign in</h1>
         {error && <div className="alert" role="alert">{error}</div>}

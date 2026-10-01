@@ -101,7 +101,7 @@ function csvCell(v: unknown): string {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-const GENERIC_NAMES = ['sales', 'sales member', 'member', 'admin', 'user', 'test admin', 'sales person', 'sales@omniscope.com'];
+const GENERIC_NAMES = ['sales', 'sales member', 'member', 'admin', 'user', 'test admin', 'sales person', 'sales@omniscope.com', 'sales@tecnoprism.com'];
 
 export function formatMemberName(p?: Profile | null, fallback?: string): string {
   if (!p) return fallback ?? 'Unknown';
@@ -109,7 +109,7 @@ export function formatMemberName(p?: Profile | null, fallback?: string): string 
   if (name && !GENERIC_NAMES.includes(name.toLowerCase())) {
     return name;
   }
-  if (p.email && p.email.toLowerCase() !== 'sales@omniscope.com') {
+  if (p.email && p.email.toLowerCase() !== 'sales@omniscope.com' && p.email.toLowerCase() !== 'sales@tecnoprism.com') {
     const handle = p.email.split('@')[0];
     const formatted = handle
       .split(/[\._]/)

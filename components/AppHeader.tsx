@@ -15,7 +15,7 @@ export default function AppHeader({ profile }: { profile: Profile }) {
               <circle cx="12" cy="12" r="1.5" fill="currentColor" />
             </svg>
           </span>
-          <span className="brand-name">OmniScope</span>
+          <span className="brand-name">Tecnoprism Sales</span>
         </div>
         <div className="me">
           <span className="avatar">{initials(displayName)}</span>

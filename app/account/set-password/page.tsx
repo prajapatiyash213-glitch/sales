@@ -37,7 +37,7 @@ export default function SetPasswordPage() {
   return (
     <div className="login">
       <form className="login-box" onSubmit={onSubmit}>
-        <div className="brand"><span className="brand-mark" />OmniScope</div>
+        <div className="brand"><span className="brand-mark" />Tecnoprism Sales</div>
         <h1>Set your password</h1>
         <p>Choose a password you will use to sign in from now on.</p>
         {error && <div className="alert" role="alert">{error}</div>}

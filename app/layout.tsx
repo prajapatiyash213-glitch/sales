@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'OmniScope Sales',
-  description: 'Sales pipeline workspace for the OmniScope team',
+  title: 'Tecnoprism Sales',
+  description: 'Sales pipeline workspace for Tecnoprism Sales',
   robots: { index: false, follow: false }
 };
 
