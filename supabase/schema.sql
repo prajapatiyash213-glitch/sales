@@ -2,6 +2,12 @@
 -- OmniScope Sales – database schema
 -- Run this whole file once in Supabase → SQL Editor → New query → Run.
 -- Safe to re-run: it drops and recreates functions/policies/triggers.
+--
+-- QUICK MIGRATION (If updating an existing Supabase database):
+-- Run these 3 lines in Supabase → SQL Editor:
+--   ALTER TABLE public.leads ADD COLUMN IF NOT EXISTS company text DEFAULT '';
+--   ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check;
+--   ALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_status_check;
 -- =====================================================================
 
 create extension if not exists pgcrypto;
@@ -97,7 +103,7 @@ begin
   new.email := lower(trim(new.email));
   new.brand := trim(new.brand);
   if new.lead_stage = 'Closed Won' or new.lead_stage = 'Client' then new.lead_status := 'Opportunity'; end if;
-  if new.lead_stage = 'Closed Lost' then new.lead_status := 'Closed Lost'; end if;
+  if new.lead_stage = 'Closed Lost' then new.lead_status := 'Postponed'; end if;
   if tg_op = 'UPDATE' then new.updated_at := now(); end if;
   return new;
 end $$;
