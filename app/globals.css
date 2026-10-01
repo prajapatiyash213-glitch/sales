@@ -662,6 +662,7 @@ tbody tr:last-child td {
 .st-Prospect { background: #FCE7F3; color: #9D174D; }
 .st-Junk { background: #F1F5F9; color: #64748B; }
 .st-ClosedLost { background: #FFE4E6; color: #BE123C; }
+.st-Postponed { background: #FED7AA; color: #C2410C; }
 .st-Nurture { background: #FEF9C3; color: #854D0E; }
 .st-Opportunity { background: #DCFCE7; color: #15803D; }
 .st-Hot { background: #FFE4EC; color: #E11D48; }

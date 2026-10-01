@@ -21,7 +21,7 @@ export const STATUSES = [
   'Demo Scheduled',
   'Prospect (Meeting/Demo done)',
   'Junk Lead',
-  'Closed Lost',
+  'Postponed',
   'Nurture',
   'Opportunity'
 ];

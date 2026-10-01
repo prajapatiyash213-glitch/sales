@@ -79,7 +79,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
     setF(prev => {
       const next = { ...prev, [k]: v };
       if (k === 'lead_stage' && (v === 'Closed Won' || v === 'Client' || v === 'Won')) next.lead_status = 'Opportunity';
-      if (k === 'lead_stage' && (v === 'Closed Lost' || v === 'Lost')) next.lead_status = 'Closed Lost';
+      if (k === 'lead_stage' && (v === 'Closed Lost' || v === 'Lost')) next.lead_status = 'Postponed';
       return next;
     });
     if (k === 'email') { setDup(null); setDupAck(false); }

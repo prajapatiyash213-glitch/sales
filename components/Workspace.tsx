@@ -30,6 +30,7 @@ function statusClass(st: string): string {
   if (clean.includes('demo')) return 'st-Demo';
   if (clean.includes('prospect')) return 'st-Prospect';
   if (clean.includes('junk')) return 'st-Junk';
+  if (clean.includes('postponed')) return 'st-Postponed';
   if (clean.includes('closed lost') || clean.includes('lost')) return 'st-ClosedLost';
   if (clean.includes('nurture')) return 'st-Nurture';
   if (clean.includes('opportunity')) return 'st-Opportunity';
@@ -86,7 +87,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const overdueCount = scoped.filter(isOverdue).length;
   const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation'].includes(l.lead_stage)).length;
   const wonCount = scoped.filter(l => ['Closed Won', 'Client', 'Won'].includes(l.lead_stage)).length;
-  const activeCount = scoped.filter(l => !['Closed Lost', 'Lost'].includes(l.lead_stage) && !['Junk Lead', 'Closed Lost', 'Dropped'].includes(l.lead_status)).length;
+  const activeCount = scoped.filter(l => !['Closed Lost', 'Lost'].includes(l.lead_stage) && !['Junk Lead', 'Closed Lost', 'Postponed', 'Dropped'].includes(l.lead_status)).length;
   const winRate = scoped.length ? Math.round((wonCount / scoped.length) * 100) : 0;
   const sources = [...new Set([...SOURCES, ...leads.map(l => l.lead_source)])];
 
