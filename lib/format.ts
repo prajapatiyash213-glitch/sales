@@ -3,6 +3,22 @@ import type { Activity, Lead, Profile } from './types';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+export function extractCompanyFromEmail(email: string | null | undefined): string {
+  if (!email || !email.includes('@')) return '';
+  const domain = email.split('@')[1] || '';
+  const namePart = domain.split('.')[0] || '';
+  if (!namePart || ['gmail', 'yahoo', 'hotmail', 'outlook', 'icloud', 'proton', 'aol', 'zoho', 'rediffmail'].includes(namePart.toLowerCase())) {
+    return '';
+  }
+  return namePart.charAt(0).toUpperCase() + namePart.slice(1);
+}
+
+export function displayCompany(l: { company?: string | null; email?: string }): string {
+  if (l.company && l.company.trim()) return l.company.trim();
+  const derived = extractCompanyFromEmail(l.email);
+  return derived || '—';
+}
+
 export function normalizeStatusValue(status: string | null | undefined): string {
   if (!status) return 'New';
   if (STATUSES.includes(status)) return status;
@@ -111,7 +127,7 @@ export function downloadLeadsCsv(leads: Lead[], people: Profile[], filename = 'l
   const nameOf = (id: string) => formatMemberName(people.find(p => p.id === id));
   const header = ['Email','Company','Brand','Ownership','Lead Date','Lead Source','Lead Stage','Date of Connect','Comments','Follow-up 2 Date','Comments','Lead Status'];
   const rows = leads.map(l => [
-    l.email, l.company || '', l.brand, nameOf(l.owner_id), l.lead_date, l.lead_source, l.lead_stage,
+    l.email, displayCompany(l) === '—' ? '' : displayCompany(l), l.brand, nameOf(l.owner_id), l.lead_date, l.lead_source, l.lead_stage,
     l.connect_date, l.comments, l.followup2_date, l.followup2_comments, l.lead_status
   ]);
   const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');

@@ -2,7 +2,7 @@
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { downloadLeadsCsv, fmtDate, formatMemberName, initials, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
+import { downloadLeadsCsv, displayCompany, fmtDate, formatMemberName, initials, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
 import ImportModal from './ImportModal';
@@ -77,7 +77,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
       (source === 'all' || l.lead_source === source) &&
       (status === 'all' || normalizeStatusValue(l.lead_status) === status) &&
       (!overdueOnly || isOverdue(l)) &&
-      (!needle || [l.email, l.company, l.brand, l.comments, l.followup2_comments].join(' ').toLowerCase().includes(needle))
+      (!needle || [l.email, displayCompany(l), l.brand, l.comments, l.followup2_comments].join(' ').toLowerCase().includes(needle))
     );
   }, [scoped, stage, brandFilter, source, status, overdueOnly, q]);
 
@@ -205,7 +205,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                 {filtered.map(l => (
                   <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
                     <td>{l.email}</td>
-                    <td>{l.company || '—'}</td>
+                    <td><strong>{displayCompany(l)}</strong></td>
                     <td><strong>{l.brand}</strong></td>
                     <td>
                       {isAdmin ? (
@@ -253,7 +253,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
             {filtered.map(l => (
               <button key={l.id} className="card" onClick={() => openLead(l)}>
                 <div className="card-top">
-                  <div><h3>{l.company || l.brand}</h3><div className="em">{l.email} {l.company ? `(${l.brand})` : ''}</div></div>
+                  <div><h3>{displayCompany(l)}</h3><div className="em">{l.email} ({l.brand})</div></div>
                   <StatusPill status={l.lead_status} />
                 </div>
                 <dl>
@@ -273,8 +273,8 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
             <div key={l.id} className="grid-card" tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
               <div className="gc-head">
                 <div>
-                  <h3 className="gc-company">{l.company || l.brand}</h3>
-                  {l.company && <span className="gc-brand-tag">{l.brand}</span>}
+                  <h3 className="gc-company">{displayCompany(l)}</h3>
+                  <span className="gc-brand-tag">{l.brand}</span>
                 </div>
                 <StatusPill status={l.lead_status} />
               </div>
