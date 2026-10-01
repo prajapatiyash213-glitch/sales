@@ -13,7 +13,10 @@ export default function ForgotPasswordPage() {
     e.preventDefault();
     setBusy(true);
     setError('');
-    const site = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
+    let site = process.env.NEXT_PUBLIC_SITE_URL;
+    if (!site || site.includes('localhost')) {
+      site = 'https://sales-hazel-ten.vercel.app';
+    }
     const { error } = await createClient().auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${site}/account/set-password`
     });
