@@ -1,7 +1,17 @@
-import { STAGES, FIELD_LABELS } from './constants';
+import { STAGES, STATUSES, FIELD_LABELS } from './constants';
 import type { Activity, Lead, Profile } from './types';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+export function normalizeStatusValue(status: string | null | undefined): string {
+  if (!status) return 'New';
+  if (STATUSES.includes(status)) return status;
+  const clean = status.trim().toLowerCase();
+  if (clean === 'warm' || clean === 'cold') return 'New';
+  if (clean === 'hot' || clean === 'converted') return 'Opportunity';
+  if (clean === 'dropped' || clean === 'closed lost') return 'Postponed';
+  return 'New';
+}
 
 export function today(): string {
   // local date in YYYY-MM-DD
@@ -27,7 +37,8 @@ export function stageColor(stage: string): string {
 }
 
 export function isOverdue(l: Lead): boolean {
-  return !!l.followup2_date && l.followup2_date < today() && !['Converted', 'Dropped'].includes(l.lead_status);
+  const normStatus = normalizeStatusValue(l.lead_status);
+  return !!l.followup2_date && l.followup2_date < today() && !['Opportunity', 'Postponed', 'Junk Lead'].includes(normStatus);
 }
 
 export function describeActivity(a: Activity, nameOf: (id: string) => string): string {

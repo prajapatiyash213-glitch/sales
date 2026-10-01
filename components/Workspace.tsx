@@ -2,7 +2,7 @@
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { downloadLeadsCsv, fmtDate, formatMemberName, initials, isOverdue, stageColor, today } from '@/lib/format';
+import { downloadLeadsCsv, fmtDate, formatMemberName, initials, isOverdue, normalizeStatusValue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
 import ImportModal from './ImportModal';
@@ -23,25 +23,21 @@ function StagePill({ stage }: { stage: string }) {
   return <span className="pill"><span className="dot" style={{ background: stageColor(stage) }} />{stage}</span>;
 }
 function statusClass(st: string): string {
-  const clean = (st || '').toLowerCase();
-  if (clean.includes('new')) return 'st-New';
-  if (clean.includes('attempt')) return 'st-Attempted';
-  if (clean.includes('contact')) return 'st-Contacted';
-  if (clean.includes('demo')) return 'st-Demo';
-  if (clean.includes('prospect')) return 'st-Prospect';
-  if (clean.includes('junk')) return 'st-Junk';
-  if (clean.includes('postponed')) return 'st-Postponed';
-  if (clean.includes('closed lost') || clean.includes('lost')) return 'st-ClosedLost';
-  if (clean.includes('nurture')) return 'st-Nurture';
-  if (clean.includes('opportunity')) return 'st-Opportunity';
-  if (clean.includes('hot')) return 'st-Hot';
-  if (clean.includes('warm')) return 'st-Warm';
-  if (clean.includes('cold')) return 'st-Cold';
-  if (clean.includes('converted') || clean.includes('won')) return 'st-Converted';
-  return 'st-Warm';
+  const norm = normalizeStatusValue(st);
+  if (norm === 'New') return 'st-New';
+  if (norm === 'Attempted to Contact') return 'st-Attempted';
+  if (norm === 'Contacted') return 'st-Contacted';
+  if (norm === 'Demo Scheduled') return 'st-Demo';
+  if (norm === 'Prospect (Meeting/Demo done)') return 'st-Prospect';
+  if (norm === 'Junk Lead') return 'st-Junk';
+  if (norm === 'Postponed') return 'st-Postponed';
+  if (norm === 'Nurture') return 'st-Nurture';
+  if (norm === 'Opportunity') return 'st-Opportunity';
+  return 'st-New';
 }
 function StatusPill({ status }: { status: string }) {
-  return <span className={`status ${statusClass(status)}`}>{status}</span>;
+  const norm = normalizeStatusValue(status);
+  return <span className={`status ${statusClass(norm)}`}>{norm}</span>;
 }
 
 export default function Workspace({ leads, loading, error, reload, me, people, isAdmin, initialOwner }: Props) {
@@ -78,7 +74,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
       (!stage || l.lead_stage === stage) &&
       (brandFilter === 'all' || l.brand === brandFilter) &&
       (source === 'all' || l.lead_source === source) &&
-      (status === 'all' || l.lead_status === status) &&
+      (status === 'all' || normalizeStatusValue(l.lead_status) === status) &&
       (!overdueOnly || isOverdue(l)) &&
       (!needle || [l.email, l.company, l.brand, l.comments, l.followup2_comments].join(' ').toLowerCase().includes(needle))
     );
@@ -87,7 +83,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const overdueCount = scoped.filter(isOverdue).length;
   const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation', 'Contacted', 'Meeting Scheduled', 'Proposal Sent', 'Negotiation'].includes(l.lead_stage)).length;
   const wonCount = scoped.filter(l => ['Closed Won', 'Client', 'Won'].includes(l.lead_stage)).length;
-  const activeCount = scoped.filter(l => !['Closed Lost', 'Lost'].includes(l.lead_stage) && !['Junk Lead', 'Closed Lost', 'Postponed', 'Dropped'].includes(l.lead_status)).length;
+  const activeCount = scoped.filter(l => !['Closed Lost', 'Lost'].includes(l.lead_stage) && !['Junk Lead', 'Closed Lost', 'Postponed', 'Dropped'].includes(normalizeStatusValue(l.lead_status))).length;
   const winRate = scoped.length ? Math.round((wonCount / scoped.length) * 100) : 0;
   const sources = [...new Set([...SOURCES, ...leads.map(l => l.lead_source)])];
 

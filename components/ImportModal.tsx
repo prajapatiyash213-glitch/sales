@@ -181,11 +181,6 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
     try {
       const supabase = createClient();
       const insertData = parsed.map(l => {
-        let finalStatus = l.lead_status || 'Warm';
-        if (l.lead_stage === 'Won') finalStatus = 'Converted';
-        else if (l.lead_stage === 'Lost') finalStatus = 'Dropped';
-        else if (finalStatus === 'Converted' || finalStatus === 'Dropped') finalStatus = 'Warm';
-
         return {
           email: l.email.toLowerCase(),
           company: l.company || null,
@@ -193,7 +188,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           owner_id: l.owner_id,
           lead_source: l.lead_source,
           lead_stage: l.lead_stage,
-          lead_status: finalStatus,
+          lead_status: l.lead_status || 'New',
           comments: l.comments || undefined
         };
       });
