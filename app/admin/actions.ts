@@ -101,3 +101,32 @@ export async function updateMember(id: string, patch: { role?: Role; active?: bo
     return { ok: false, message: (e as Error).message };
   }
 }
+
+export async function deleteMember(id: string): Promise<Result> {
+  try {
+    const me = await assertAdmin();
+    if (id === me) {
+      return { ok: false, message: 'You cannot delete your own admin account.' };
+    }
+
+    const admin = createAdminClient();
+
+    // 1. Reassign leads owned by this member to the current admin
+    await admin.from('leads').update({ owner_id: me }).eq('owner_id', id);
+
+    // 2. Delete profile from 'profiles' table
+    const { error: profileErr } = await admin.from('profiles').delete().eq('id', id);
+    if (profileErr) return { ok: false, message: profileErr.message };
+
+    // 3. Delete user from Supabase Auth
+    const { error: authErr } = await admin.auth.admin.deleteUser(id);
+    if (authErr && !authErr.message?.includes('not found')) {
+      return { ok: false, message: authErr.message };
+    }
+
+    revalidatePath('/admin');
+    return { ok: true, message: 'Member deleted permanently' };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
+}

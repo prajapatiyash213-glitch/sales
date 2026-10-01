@@ -1,7 +1,7 @@
 'use client';
 import { useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { inviteMember, resendMemberInvite, updateMember } from '@/app/admin/actions';
+import { deleteMember, inviteMember, resendMemberInvite, updateMember } from '@/app/admin/actions';
 import { formatMemberName, initials } from '@/lib/format';
 import type { Lead, Profile, Role } from '@/lib/types';
 import { useToast } from './Toast';
@@ -30,6 +30,15 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
   function resend(targetEmail: string) {
     start(async () => {
       const r = await resendMemberInvite(targetEmail);
+      toast.show(r.message);
+      if (r.ok) router.refresh();
+    });
+  }
+
+  function remove(id: string, memberName: string) {
+    if (!confirm(`Are you sure you want to delete ${memberName}? This will permanently remove their account and reassign their leads to you.`)) return;
+    start(async () => {
+      const r = await deleteMember(id);
       toast.show(r.message);
       if (r.ok) router.refresh();
     });
@@ -87,12 +96,8 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
                       <button type="button" className="btn outline" disabled={pending} onClick={() => resend(p.email)}>
                         Resend invite
                       </button>
-                      <button type="button" className={`btn ${p.active ? 'danger' : ''}`} disabled={pending}
-                        onClick={() => {
-                          if (p.active && !confirm(`Deactivate ${p.full_name}? They will be signed out and blocked. Their leads stay; reassign them from the lead editor.`)) return;
-                          change(p.id, { active: !p.active });
-                        }}>
-                        {p.active ? 'Deactivate' : 'Reactivate'}
+                      <button type="button" className="btn danger" disabled={pending} onClick={() => remove(p.id, p.full_name || p.email)}>
+                        Delete
                       </button>
                     </>
                   )}
