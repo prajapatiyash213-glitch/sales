@@ -17,16 +17,59 @@ async function assertAdmin() {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function inviteMember(input: { email: string; fullName: string; role: Role }): Promise<Result> {
+export async function inviteMember(input: { email: string; fullName: string; role: Role; password?: string }): Promise<Result> {
   try {
     await assertAdmin();
     const email = input.email.trim().toLowerCase();
     const fullName = input.fullName.trim();
     const role: Role = input.role === 'admin' ? 'admin' : 'member';
+    const password = input.password?.trim();
+
     if (!EMAIL_RE.test(email)) return { ok: false, message: 'Enter a valid email address.' };
     if (!fullName) return { ok: false, message: 'Enter the member\u2019s full name.' };
+    if (password && password.length < 8) return { ok: false, message: 'Password must be at least 8 characters.' };
 
     const admin = createAdminClient();
+
+    // Check if user already exists in profiles
+    const { data: existingProfile } = await admin.from('profiles').select('id').eq('email', email).maybeSingle();
+
+    if (existingProfile) {
+      if (password) {
+        const { error: authErr } = await admin.auth.admin.updateUserById(existingProfile.id, {
+          password,
+          user_metadata: { full_name: fullName }
+        });
+        if (authErr) return { ok: false, message: authErr.message };
+      }
+      const { error: profileErr } = await admin.from('profiles').update({ full_name: fullName, role, active: true }).eq('id', existingProfile.id);
+      if (profileErr) return { ok: false, message: profileErr.message };
+      revalidatePath('/admin');
+      return { ok: true, message: `Member account updated for ${email}` };
+    }
+
+    // Create new user directly in Supabase Auth if password provided
+    if (password) {
+      const { data: newUser, error: createErr } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name: fullName }
+      });
+      if (createErr) return { ok: false, message: createErr.message };
+      if (newUser?.user) {
+        await admin.from('profiles').upsert({
+          id: newUser.user.id,
+          email,
+          full_name: fullName,
+          role,
+          active: true
+        });
+      }
+      revalidatePath('/admin');
+      return { ok: true, message: `Member created for ${email}! They can now sign in immediately with password.` };
+    }
+
     let site = process.env.NEXT_PUBLIC_SITE_URL;
     if (!site || site.includes('localhost')) {
       site = 'https://sales-hazel-ten.vercel.app';

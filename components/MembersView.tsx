@@ -12,6 +12,7 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
   const [pending, start] = useTransition();
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
   const [role, setRole] = useState<Role>('member');
   const [err, setErr] = useState('');
 
@@ -19,9 +20,9 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
     e.preventDefault();
     setErr('');
     start(async () => {
-      const r = await inviteMember({ email, fullName: name, role });
+      const r = await inviteMember({ email, fullName: name, role, password });
       if (!r.ok) { setErr(r.message); return; }
-      setEmail(''); setName(''); setRole('member');
+      setEmail(''); setName(''); setPassword(''); setRole('member');
       toast.show(r.message);
       router.refresh();
     });
@@ -57,19 +58,20 @@ export default function MembersView({ people, me, leads }: { people: Profile[]; 
       <div className="strip-head"><h2>Members</h2><span className="hint">Invite sales members and control who can sign in</span></div>
 
       <form className="panel" onSubmit={onInvite}>
-        <strong>Invite a member</strong>
-        <p className="muted small">They get an email with a link to set their password.</p>
+        <strong>Add / Invite a member</strong>
+        <p className="muted small">Set a password to create the account directly so they can sign in immediately, or leave it empty to send an email invite link.</p>
         {err && <div className="alert" role="alert">{err}</div>}
         <div className="invite-row">
           <label className="f">Full name<input value={name} onChange={e => setName(e.target.value)} placeholder="Riya Shah" required /></label>
           <label className="f">Work email<input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="riya@tecnoprism.com" required /></label>
+          <label className="f">Password (optional)<input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 chars" /></label>
           <label className="f">Role
             <select value={role} onChange={e => setRole(e.target.value as Role)}>
               <option value="member">Sales member</option>
               <option value="admin">Admin</option>
             </select>
           </label>
-          <button className="btn primary" disabled={pending}>{pending ? 'Sending…' : 'Send invite'}</button>
+          <button className="btn primary" disabled={pending}>{pending ? 'Saving…' : (password ? 'Create member' : 'Send invite')}</button>
         </div>
       </form>
 
