@@ -41,5 +41,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // If Supabase auth/v1/verify already verified the token and redirected to /auth/confirm?next=...,
+  // pass the user through to the target page (e.g. /account/set-password)
+  if (next && next !== '/login') {
+    return NextResponse.redirect(`${origin}${next}`);
+  }
+
   return NextResponse.redirect(`${origin}/login?error=link`);
 }

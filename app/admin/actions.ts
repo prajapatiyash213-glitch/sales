@@ -33,12 +33,12 @@ export async function inviteMember(input: { email: string; fullName: string; rol
     }
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       data: { full_name: fullName },
-      redirectTo: `${site}/auth/confirm?next=/account/set-password`
+      redirectTo: `${site}/account/set-password`
     });
     if (error) {
       if (/already been registered|already exists/i.test(error.message)) {
         const { error: resendErr } = await admin.auth.resetPasswordForEmail(email, {
-          redirectTo: `${site}/auth/confirm?next=/account/set-password`
+          redirectTo: `${site}/account/set-password`
         });
         if (resendErr) return { ok: false, message: resendErr.message };
         return { ok: true, message: `Fresh invitation email sent to ${email}` };
@@ -66,7 +66,7 @@ export async function resendMemberInvite(email: string): Promise<Result> {
     }
 
     const { error } = await admin.auth.resetPasswordForEmail(cleanEmail, {
-      redirectTo: `${site}/auth/confirm?next=/account/set-password`
+      redirectTo: `${site}/account/set-password`
     });
 
     if (error) return { ok: false, message: error.message };

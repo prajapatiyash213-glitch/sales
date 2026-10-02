@@ -41,7 +41,7 @@ export default function SetPasswordPage() {
             }
             userEmail = data.user?.email || '';
           } else if (tokenHash) {
-            const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+            const { data, error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
             if (error) {
               setError('This invitation link has expired or was already used. Please request a new invite.');
               setChecking(false);
@@ -57,12 +57,12 @@ export default function SetPasswordPage() {
           return;
         }
 
-        // Scenario 2: Arrived via /auth/confirm redirect with ?email=...
-        if (emailParam) {
-          const { data: { user } } = await supabase.auth.getUser();
-          const { data: { session } } = await supabase.auth.getSession();
-          const activeEmail = user?.email || session?.user?.email || emailParam;
-          setEmail(activeEmail);
+        // Scenario 2: Active authenticated session (from Supabase auth/v1/verify or cookie)
+        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (session?.user?.email || user?.email) {
+          const currentEmail = user?.email || session?.user?.email || emailParam || '';
+          setEmail(currentEmail);
           setHasSession(true);
           setChecking(false);
           return;
@@ -94,7 +94,7 @@ export default function SetPasswordPage() {
           };
         }
 
-        // Scenario 4: Opened /account/set-password directly without an invite link token
+        // Scenario 4: Opened /account/set-password directly without an invite link token or session
         setError('No active invite session found. Please open the link directly from your invitation email.');
         setHasSession(false);
         setChecking(false);
