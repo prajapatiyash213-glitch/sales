@@ -85,7 +85,7 @@ const INITIAL_DEMO_LEADS = [
 
 const INITIAL_DEMO_PROFILES = [
   { id: 'demo-admin-id', email: 'yash.tecnoprism@gmail.com', full_name: 'Yash Prajapati', role: 'admin', active: true, created_at: '2026-01-01T00:00:00Z' },
-  { id: 'demo-sales-id', email: 'shivamprajapati12sp12@gmail.com', full_name: 'shivam p', role: 'member', active: true, created_at: '2026-01-01T00:00:00Z' }
+  { id: 'demo-sales-id', email: 'pinali.timba@tecnoprism.com', full_name: 'Pinali Timba', role: 'member', active: true, created_at: '2026-01-01T00:00:00Z' }
 ];
 
 function isDemoMode() {
