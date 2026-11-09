@@ -1,5 +1,5 @@
 'use client';
-import { useState, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/types';
@@ -26,6 +26,14 @@ interface ParsedLead {
   date_of_connect?: string;
   followup2_date?: string;
   followup2_comments?: string;
+}
+
+interface UploadedFileInfo {
+  name: string;
+  size: number;
+  uploadedAt: string;
+  uploadedBy: string;
+  count: number;
 }
 
 import { BRANDS, STATUSES, STAGES } from '@/lib/constants';
@@ -68,10 +76,26 @@ function normalizeStage(raw: string): string {
 
 export default function ImportModal({ open, onClose, me, people, reload }: Props) {
   const toast = useToast();
+  const isAdmin = me?.role === 'admin';
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<ParsedLead[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [lastUploaded, setLastUploaded] = useState<UploadedFileInfo | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('last_uploaded_sales_lead_file');
+        if (saved) {
+          setLastUploaded(JSON.parse(saved));
+        }
+      } catch (err) {
+        console.error('Failed to read last uploaded file info:', err);
+      }
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -173,6 +197,28 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
     reader.readAsBinaryString(selected);
   }
 
+  function handleRemoveFile() {
+    if (!isAdmin) {
+      toast.show('Permission denied: Only administrators can remove uploaded files.');
+      return;
+    }
+    setFile(null);
+    setParsed([]);
+    setError('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('last_uploaded_sales_lead_file');
+        setLastUploaded(null);
+      } catch (err) {
+        console.error('Failed to clear uploaded file info:', err);
+      }
+    }
+    toast.show('Uploaded file removed successfully.');
+  }
+
   async function handleImport() {
     if (!parsed.length) return;
     setBusy(true);
@@ -206,6 +252,22 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         return;
       }
 
+      const fileInfo: UploadedFileInfo = {
+        name: file?.name || 'leads_imported.xlsx',
+        size: file?.size || 0,
+        uploadedAt: new Date().toISOString(),
+        uploadedBy: me?.full_name || me?.email || 'Admin',
+        count: parsed.length
+      };
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('last_uploaded_sales_lead_file', JSON.stringify(fileInfo));
+          setLastUploaded(fileInfo);
+        } catch (err) {
+          console.error('Failed to save uploaded file info:', err);
+        }
+      }
+
       toast.show(`Successfully imported & allocated ${parsed.length} leads!`);
       await reload();
       setBusy(false);
@@ -215,6 +277,17 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       setBusy(false);
     }
   }
+
+  const isStaged = !!file;
+  const currentDisplayFile = file
+    ? {
+        name: file.name,
+        size: file.size,
+        count: parsed.length,
+        uploadedAt: '',
+        uploadedBy: me?.full_name || me?.email || 'Admin'
+      }
+    : lastUploaded;
 
   return (
     <>
@@ -232,8 +305,9 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
 
           {error && <div className="alert" role="alert">{error}</div>}
 
-          <div style={{ background: '#F8FAFC', border: '2px dashed #CBD5E1', borderRadius: 16, padding: 24, textAlign: 'center', marginBottom: 20 }}>
+          <div style={{ background: '#F8FAFC', border: '2px dashed #CBD5E1', borderRadius: 16, padding: 24, textAlign: 'center', marginBottom: 16 }}>
             <input
+              ref={fileInputRef}
               type="file"
               accept=".xlsx, .xls, .csv"
               onChange={handleFileChange}
@@ -242,6 +316,142 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             <div className="small muted" style={{ marginTop: 8 }}>
               Supported columns: <b>Email, Company, Brand, Ownership / Sales Member, Source, Stage</b>
             </div>
+          </div>
+
+          {/* Uploaded / Selected File Name & Admin Removal Box */}
+          <div
+            style={{
+              background: '#FFFFFF',
+              border: currentDisplayFile ? '1.5px solid #CBD5E1' : '1px dashed #E2E8F0',
+              borderRadius: 14,
+              padding: '14px 18px',
+              marginBottom: 20,
+              boxShadow: currentDisplayFile ? '0 1px 3px rgba(0,0,0,0.05)' : 'none'
+            }}
+          >
+            {currentDisplayFile ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: 1 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 10,
+                      background: currentDisplayFile.name.endsWith('.csv') ? '#ECFDF5' : '#EFF6FF',
+                      color: currentDisplayFile.name.endsWith('.csv') ? '#059669' : '#2563EB',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                      fontWeight: 800,
+                      flexShrink: 0
+                    }}
+                  >
+                    {currentDisplayFile.name.endsWith('.csv') ? '📄' : '📊'}
+                  </div>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 700, fontSize: 14, color: '#0F172A', wordBreak: 'break-all' }}>
+                        {currentDisplayFile.name}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: 999,
+                          background: isStaged ? '#FEF3C7' : '#DCFCE7',
+                          color: isStaged ? '#92400E' : '#166534',
+                          border: isStaged ? '1px solid #FCD34D' : '1px solid #86EFAC'
+                        }}
+                      >
+                        {isStaged ? 'Selected (Ready to Import)' : 'Previously Uploaded'}
+                      </span>
+                    </div>
+                    <div className="small muted" style={{ marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {currentDisplayFile.size > 0 && <span>{(currentDisplayFile.size / 1024).toFixed(1)} KB</span>}
+                      {currentDisplayFile.size > 0 && <span>•</span>}
+                      <span>{currentDisplayFile.count} {currentDisplayFile.count === 1 ? 'lead' : 'leads'} detected</span>
+                      {currentDisplayFile.uploadedAt && (
+                        <>
+                          <span>•</span>
+                          <span>Uploaded {new Date(currentDisplayFile.uploadedAt).toLocaleDateString()}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveFile}
+                      className="btn"
+                      style={{
+                        background: '#FEE2E2',
+                        color: '#991B1B',
+                        borderColor: '#F87171',
+                        padding: '7px 14px',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6
+                      }}
+                      title="Admin action: Remove uploaded file"
+                    >
+                      🗑️ Remove File
+                    </button>
+                  ) : (
+                    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                      <button
+                        type="button"
+                        disabled
+                        className="btn"
+                        style={{
+                          background: '#F1F5F9',
+                          color: '#94A3B8',
+                          borderColor: '#CBD5E1',
+                          padding: '7px 14px',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          cursor: 'not-allowed',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          opacity: 0.75
+                        }}
+                        title="Permission restricted: Only administrators can remove uploaded files"
+                      >
+                        🔒 Remove File (Admin only)
+                      </button>
+                      <span style={{ fontSize: 10, color: '#94A3B8' }}>Admin role required</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748B', fontSize: 13, padding: '4px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>📁</span>
+                  <span>No file currently uploaded. Choose an Excel or CSV file above.</span>
+                </div>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    padding: '2px 8px',
+                    borderRadius: 999,
+                    background: isAdmin ? '#E0F2FE' : '#F1F5F9',
+                    color: isAdmin ? '#0369A1' : '#64748B'
+                  }}
+                >
+                  {isAdmin ? '🛡️ Admin Access' : 'User Access'}
+                </span>
+              </div>
+            )}
           </div>
 
           {parsed.length > 0 && (
