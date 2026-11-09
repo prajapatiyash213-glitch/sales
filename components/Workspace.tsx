@@ -54,6 +54,43 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [overdueOnly, setOverdueOnly] = useState(false);
   const [editor, setEditor] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [importOpen, setImportOpen] = useState(false);
+  const [clearModalOpen, setClearModalOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
+
+  const handleClearAllLeads = async () => {
+    if (!isAdmin) {
+      toast.show('Permission denied: Only administrators can clear all leads data.');
+      return;
+    }
+    setClearing(true);
+    try {
+      const { error } = await supabase.from('leads').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) {
+        const res = await fetch('/api/sales-leads', { method: 'DELETE' });
+        const resData = await res.json();
+        if (!res.ok || resData.error) {
+          throw new Error(resData.error || error.message);
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('last_uploaded_sales_lead_file');
+          localStorage.removeItem('sales_lead_metadata_cache_v1');
+        } catch {
+          // ignore
+        }
+      }
+
+      toast.show('All leads have been successfully cleared.');
+      setClearModalOpen(false);
+      await reload();
+    } catch (err: any) {
+      toast.show(`Failed to clear leads: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setClearing(false);
+    }
+  };
 
   const nameOf = (id: string) => {
     const p = people.find(item => item.id === id) ?? (id === me.id ? me : null);
@@ -181,6 +218,25 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         </button>
         <button className="btn" onClick={() => downloadLeadsCsv(filtered, people.length ? people : [me], `leads-${today()}.csv`)}>Export CSV</button>
         {isAdmin && <button className="btn" onClick={() => setImportOpen(true)}>📥 Import Excel / CSV</button>}
+        {isAdmin && (
+          <button
+            type="button"
+            className="btn"
+            style={{
+              background: '#FEE2E2',
+              color: '#991B1B',
+              borderColor: '#FCA5A5',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600
+            }}
+            onClick={() => setClearModalOpen(true)}
+            title="Admin action: Permanently delete all leads"
+          >
+            🗑️ Clear All Leads
+          </button>
+        )}
         <button className="btn primary" onClick={() => openLead(null)}>+ Add lead</button>
       </div>
 
@@ -308,6 +364,107 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         people={people}
         reload={reload}
       />
+
+      {clearModalOpen && (
+        <>
+          <div className="scrim open" onClick={() => !clearing && setClearModalOpen(false)} />
+          <div
+            className="dialog open"
+            style={{
+              position: 'fixed',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1000,
+              background: '#FFFFFF',
+              borderRadius: 16,
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+              width: 'min(460px, 92vw)',
+              padding: 24,
+              border: '1px solid #FECACA'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 16 }}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  background: '#FEE2E2',
+                  color: '#DC2626',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 22,
+                  flexShrink: 0
+                }}
+              >
+                ⚠️
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#991B1B' }}>
+                  Clear All Leads Data?
+                </h3>
+                <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#6B7280' }}>
+                  Admin confirmation required
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn ghost"
+                disabled={clearing}
+                onClick={() => setClearModalOpen(false)}
+                style={{ padding: '4px 8px', fontSize: 16 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                background: '#FFF5F5',
+                border: '1px solid #FED7D7',
+                borderRadius: 10,
+                padding: '12px 14px',
+                fontSize: 13,
+                color: '#742A2A',
+                lineHeight: 1.5,
+                marginBottom: 20
+              }}
+            >
+              This action will <strong>permanently delete all {leads.length} leads</strong> from the database across all team members and brands. This cannot be undone.
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                className="btn"
+                disabled={clearing}
+                onClick={() => setClearModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={clearing}
+                style={{
+                  background: '#DC2626',
+                  color: '#FFFFFF',
+                  borderColor: '#DC2626',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+                onClick={handleClearAllLeads}
+              >
+                {clearing ? 'Clearing…' : '🗑️ Yes, Clear All Leads'}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
       {toast.node}
     </>
   );

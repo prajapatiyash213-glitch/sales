@@ -7,7 +7,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ||
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
@@ -91,6 +91,20 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ success: true }, { headers: corsHeaders });
   } catch (err: any) {
     console.error('[API /api/sales-leads PATCH Error]:', err);
+    return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500, headers: corsHeaders });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const supabase = getAdminClient();
+    // Wipe all leads from table
+    const { error } = await supabase.from('leads').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, message: 'All leads successfully deleted' }, { headers: corsHeaders });
+  } catch (err: any) {
+    console.error('[API /api/sales-leads DELETE Error]:', err);
     return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500, headers: corsHeaders });
   }
 }
