@@ -26,7 +26,28 @@ export function useLeads() {
       all.push(...(data as Lead[]));
       if (!data || data.length < PAGE) break;
     }
-    setLeads(all);
+
+    let metaMap: Record<string, any> = {};
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
+        if (raw) metaMap = JSON.parse(raw);
+      } catch {}
+    }
+
+    const enriched = all.map(l => {
+      const meta = metaMap[l.id] || metaMap[l.email?.toLowerCase()] || {};
+      return {
+        ...l,
+        first_name: l.first_name || meta.firstName || meta.first_name || '',
+        last_name: l.last_name || meta.lastName || meta.last_name || '',
+        designation: l.designation || meta.designation || '',
+        contact_no: l.contact_no || meta.contactNo || meta.contact_no || '',
+        company: l.company || meta.company || ''
+      };
+    });
+
+    setLeads(enriched);
     setError(null);
     setLoading(false);
   }, [supabase]);

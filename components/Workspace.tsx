@@ -47,6 +47,8 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [view, setView] = useState<'table' | 'grid'>('table');
   const [q, setQ] = useState('');
   const [owner, setOwner] = useState(initialOwner ?? 'all');
+  const [companyFilter, setCompanyFilter] = useState('all');
+  const [designationFilter, setDesignationFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState('all');
   const [source, setSource] = useState('all');
   const [status, setStatus] = useState('all');
@@ -98,6 +100,46 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   };
   const members = people.filter(p => p.role === 'member' || leads.some(l => l.owner_id === p.id));
 
+  const companies = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach(l => {
+      const c = displayCompany(l);
+      if (c && c !== '—' && c.trim()) set.add(c.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [leads]);
+
+  const designations = useMemo(() => {
+    const set = new Set<string>();
+    leads.forEach(l => {
+      if (l.designation?.trim()) set.add(l.designation.trim());
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [leads]);
+
+  const hasActiveFilters =
+    q !== '' ||
+    owner !== 'all' ||
+    companyFilter !== 'all' ||
+    designationFilter !== 'all' ||
+    brandFilter !== 'all' ||
+    source !== 'all' ||
+    status !== 'all' ||
+    stage !== null ||
+    overdueOnly;
+
+  const handleResetFilters = () => {
+    setQ('');
+    setOwner('all');
+    setCompanyFilter('all');
+    setDesignationFilter('all');
+    setBrandFilter('all');
+    setSource('all');
+    setStatus('all');
+    setStage(null);
+    setOverdueOnly(false);
+  };
+
   // Leads scoped by owner filter (Sales members see their own leads; Admins see all or filtered owner)
   const scoped = useMemo(() => {
     if (!isAdmin) {
@@ -108,15 +150,32 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return scoped.filter(l =>
-      (!stage || normalizeStageValue(l.lead_stage) === stage) &&
-      (brandFilter === 'all' || l.brand === brandFilter) &&
-      (source === 'all' || l.lead_source === source) &&
-      (status === 'all' || normalizeStatusValue(l.lead_status) === status) &&
-      (!overdueOnly || isOverdue(l)) &&
-      (!needle || [l.email, displayCompany(l), l.brand, l.comments, l.followup2_comments].join(' ').toLowerCase().includes(needle))
-    );
-  }, [scoped, stage, brandFilter, source, status, overdueOnly, q]);
+    return scoped.filter(l => {
+      const lCompany = displayCompany(l);
+      const lDesignation = l.designation?.trim() || '';
+      return (
+        (!stage || normalizeStageValue(l.lead_stage) === stage) &&
+        (brandFilter === 'all' || l.brand === brandFilter) &&
+        (companyFilter === 'all' || lCompany.toLowerCase() === companyFilter.toLowerCase()) &&
+        (designationFilter === 'all' || lDesignation.toLowerCase() === designationFilter.toLowerCase()) &&
+        (source === 'all' || l.lead_source === source) &&
+        (status === 'all' || normalizeStatusValue(l.lead_status) === status) &&
+        (!overdueOnly || isOverdue(l)) &&
+        (!needle || [
+          l.first_name,
+          l.last_name,
+          l.designation,
+          l.contact_no,
+          l.email,
+          lCompany,
+          l.brand,
+          nameOf(l.owner_id),
+          l.comments,
+          l.followup2_comments
+        ].filter(Boolean).join(' ').toLowerCase().includes(needle))
+      );
+    });
+  }, [scoped, stage, brandFilter, companyFilter, designationFilter, source, status, overdueOnly, q, people, me]);
 
   const overdueCount = scoped.filter(isOverdue).length;
   const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation'].includes(normalizeStageValue(l.lead_stage))).length;
@@ -194,7 +253,22 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           <button role="tab" aria-selected={view === 'table'} className={view === 'table' ? 'on' : ''} onClick={() => setView('table')}>List</button>
           <button role="tab" aria-selected={view === 'grid'} className={view === 'grid' ? 'on' : ''} onClick={() => setView('grid')}>Grid</button>
         </div>
-        <input type="search" placeholder="Search email, company or comments" value={q} onChange={e => setQ(e.target.value)} aria-label="Search leads" />
+        <input
+          type="search"
+          placeholder="Search name, designation, contact, email, company…"
+          value={q}
+          onChange={e => setQ(e.target.value)}
+          aria-label="Search leads"
+          style={{ minWidth: 220 }}
+        />
+        <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} aria-label="Filter by company">
+          <option value="all">All companies ({companies.length})</option>
+          {companies.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={designationFilter} onChange={e => setDesignationFilter(e.target.value)} aria-label="Filter by designation">
+          <option value="all">All designations ({designations.length})</option>
+          {designations.map(d => <option key={d} value={d}>{d}</option>)}
+        </select>
         {isAdmin && (
           <select value={owner} onChange={e => setOwner(e.target.value)} aria-label="Filter by owner">
             <option value="all">All members</option>
@@ -216,6 +290,17 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         <button className={`btn ${overdueOnly ? 'on-danger' : ''}`} onClick={() => setOverdueOnly(v => !v)} aria-pressed={overdueOnly}>
           Overdue follow-ups ({overdueCount})
         </button>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={handleResetFilters}
+            style={{ color: '#E11D48', fontWeight: 700 }}
+            title="Reset all filters"
+          >
+            ✕ Reset
+          </button>
+        )}
         <button className="btn" onClick={() => downloadLeadsCsv(filtered, people.length ? people : [me], `leads-${today()}.csv`)}>Export CSV</button>
         {isAdmin && <button className="btn" onClick={() => setImportOpen(true)}>📥 Import Excel / CSV</button>}
         {isAdmin && (
@@ -254,12 +339,17 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           <div className="table-wrap leads">
             <table>
               <thead><tr>
+                <th>First Name</th><th>Last Name</th><th>Designation</th><th>Contact No</th>
                 <th>Email</th><th>Company</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
                 <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
               </tr></thead>
               <tbody>
                 {filtered.map(l => (
                   <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
+                    <td>{l.first_name || '—'}</td>
+                    <td>{l.last_name || '—'}</td>
+                    <td>{l.designation ? <span className="role-tag" style={{ background: '#F1F5F9', color: '#334155', fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>{l.designation}</span> : '—'}</td>
+                    <td>{l.contact_no ? <a href={`tel:${l.contact_no}`} onClick={e => e.stopPropagation()} style={{ color: '#2563EB', textDecoration: 'none', fontWeight: 600 }}>{l.contact_no}</a> : '—'}</td>
                     <td>{l.email}</td>
                     <td><strong>{displayCompany(l)}</strong></td>
                     <td><strong>{l.brand}</strong></td>
@@ -334,8 +424,15 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                 </div>
                 <StatusPill status={l.lead_status} />
               </div>
-              <div className="gc-email">{l.email}</div>
+              <div className="gc-email">
+                {[l.first_name, l.last_name].filter(Boolean).join(' ') ? (
+                  <span style={{ fontWeight: 700, color: '#0F172A' }}>{[l.first_name, l.last_name].filter(Boolean).join(' ')} · </span>
+                ) : null}
+                {l.email}
+              </div>
               <div className="gc-body">
+                {l.designation && <div className="gc-row"><span className="gc-label">Role:</span> <span>{l.designation}</span></div>}
+                {l.contact_no && <div className="gc-row"><span className="gc-label">Contact:</span> <a href={`tel:${l.contact_no}`} onClick={e => e.stopPropagation()} style={{ color: '#2563EB', textDecoration: 'none' }}>{l.contact_no}</a></div>}
                 <div className="gc-row"><span className="gc-label">Stage:</span> <StagePill stage={l.lead_stage} /></div>
                 <div className="gc-row"><span className="gc-label">Ownership:</span> <span className="owner"><span className="avatar">{initials(nameOf(l.owner_id))}</span>{nameOf(l.owner_id)}</span></div>
                 <div className="gc-row"><span className="gc-label">Lead Date:</span> <span>{fmtDate(l.lead_date)}</span></div>

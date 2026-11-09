@@ -14,6 +14,10 @@ interface Props {
 }
 
 interface ParsedLead {
+  first_name?: string;
+  last_name?: string;
+  designation?: string;
+  contact_no?: string;
   email: string;
   company?: string;
   brand: string;
@@ -147,6 +151,10 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             return '';
           };
 
+          const firstName = getCol(['first name', 'firstname', 'fname', 'first_name']);
+          const lastName = getCol(['last name', 'lastname', 'lname', 'last_name']);
+          const designation = getCol(['designation', 'title', 'role', 'job title', 'position']);
+          const contactNo = getCol(['contact no', 'contact number', 'contact', 'phone', 'mobile', 'cell', 'phone number']);
           const email = getCol(['email', 'work email', 'email address', 'lead email']);
           const company = getCol(['company', 'company name', 'client']);
           let brand = getCol(['brand', 'brand name']);
@@ -172,6 +180,10 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           const allocatedOwner = matchedOwner ?? me;
 
           leadsList.push({
+            first_name: firstName,
+            last_name: lastName,
+            designation,
+            contact_no: contactNo,
             email,
             company,
             brand,
@@ -228,6 +240,10 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       const supabase = createClient();
       const insertData = parsed.map(l => {
         return {
+          first_name: l.first_name || null,
+          last_name: l.last_name || null,
+          designation: l.designation || null,
+          contact_no: l.contact_no || null,
           email: l.email.toLowerCase(),
           company: l.company || null,
           brand: l.brand,
@@ -239,17 +255,43 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         };
       });
 
-      let { error } = await supabase.from('leads').insert(insertData);
-      if (error && (error.code === 'PGRST204' || error.message?.includes('company'))) {
-        const fallbackInsert = insertData.map(({ company, ...rest }) => rest);
-        const retry = await supabase.from('leads').insert(fallbackInsert);
+      let { data: insertedLeads, error } = await supabase.from('leads').insert(insertData).select();
+      if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
+        const fallbackInsert = insertData.map(({ first_name, last_name, designation, contact_no, company, ...rest }: any) => {
+          const item: any = { ...rest };
+          if (!error.message?.includes('company')) item.company = company;
+          return item;
+        });
+        const retry = await supabase.from('leads').insert(fallbackInsert).select();
         error = retry.error;
+        insertedLeads = retry.data;
       }
 
       if (error) {
         setError(error.message);
         setBusy(false);
         return;
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
+          const cache = raw ? JSON.parse(raw) : {};
+          parsed.forEach((p, idx) => {
+            const saved = insertedLeads?.[idx];
+            const metaKey = saved?.id || p.email.toLowerCase();
+            const meta = {
+              firstName: p.first_name || '',
+              lastName: p.last_name || '',
+              designation: p.designation || '',
+              contactNo: p.contact_no || '',
+              company: p.company || ''
+            };
+            cache[metaKey] = meta;
+            cache[p.email.toLowerCase()] = meta;
+          });
+          localStorage.setItem('sales_lead_metadata_cache_v1', JSON.stringify(cache));
+        } catch {}
       }
 
       const fileInfo: UploadedFileInfo = {
@@ -314,7 +356,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
               style={{ width: '100%' }}
             />
             <div className="small muted" style={{ marginTop: 8 }}>
-              Supported columns: <b>Email, Company, Brand, Ownership / Sales Member, Source, Stage</b>
+              Supported columns: <b>First Name, Last Name, Designation, Contact No, Email, Company, Brand, Ownership, Source, Stage</b>
             </div>
           </div>
 
@@ -463,6 +505,9 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
                 <table>
                   <thead>
                     <tr>
+                      <th>Name</th>
+                      <th>Designation</th>
+                      <th>Contact No</th>
                       <th>Email</th>
                       <th>Company</th>
                       <th>Brand</th>
@@ -471,19 +516,25 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
                     </tr>
                   </thead>
                   <tbody>
-                    {parsed.map((item, idx) => (
-                      <tr key={idx}>
-                        <td>{item.email}</td>
-                        <td>{item.company || '—'}</td>
-                        <td><strong>{item.brand}</strong></td>
-                        <td>
-                          <span className="role-tag admin" style={{ background: '#E0F2FE', color: '#0369A1' }}>
-                            👤 {item.owner_name}
-                          </span>
-                        </td>
-                        <td>{item.lead_stage}</td>
-                      </tr>
-                    ))}
+                    {parsed.map((item, idx) => {
+                      const fullName = [item.first_name, item.last_name].filter(Boolean).join(' ');
+                      return (
+                        <tr key={idx}>
+                          <td>{fullName || '—'}</td>
+                          <td>{item.designation || '—'}</td>
+                          <td>{item.contact_no || '—'}</td>
+                          <td>{item.email}</td>
+                          <td>{item.company || '—'}</td>
+                          <td><strong>{item.brand}</strong></td>
+                          <td>
+                            <span className="role-tag admin" style={{ background: '#E0F2FE', color: '#0369A1' }}>
+                              👤 {item.owner_name}
+                            </span>
+                          </td>
+                          <td>{item.lead_stage}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

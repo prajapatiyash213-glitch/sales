@@ -86,6 +86,10 @@ create table if not exists public.leads (
 
 -- Ensure company column exists on existing installations
 alter table public.leads add column if not exists company text default '';
+alter table public.leads add column if not exists first_name text default '';
+alter table public.leads add column if not exists last_name text default '';
+alter table public.leads add column if not exists designation text default '';
+alter table public.leads add column if not exists contact_no text default '';
 
 -- Remove restrictive check constraints so custom stages and statuses never fail
 alter table public.leads drop constraint if exists leads_lead_stage_check;

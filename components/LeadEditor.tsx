@@ -6,6 +6,7 @@ import { describeActivity, fmtDateTime, formatMemberName, normalizeStageValue, n
 import type { Activity, Lead, Profile } from '@/lib/types';
 
 type Form = {
+  first_name: string; last_name: string; designation: string; contact_no: string;
   email: string; company: string; brand: string; owner_id: string; lead_date: string; lead_source: string; lead_stage: string;
   connect_date: string; comments: string; followup2_date: string; followup2_comments: string; lead_status: string;
 };
@@ -25,6 +26,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
   const firstMember = people.find(p => p.role === 'member' && p.active);
   return {
+    first_name: '', last_name: '', designation: '', contact_no: '',
     email: '', company: '', brand: BRANDS[0], owner_id: isAdmin ? (firstMember?.id ?? me.id) : me.id,
     lead_date: today(), lead_source: SOURCES[0], lead_stage: 'Discovery',
     connect_date: '', comments: '', followup2_date: '', followup2_comments: '', lead_status: 'New'
@@ -33,6 +35,7 @@ function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
 
 function fromLead(l: Lead): Form {
   return {
+    first_name: l.first_name ?? '', last_name: l.last_name ?? '', designation: l.designation ?? '', contact_no: l.contact_no ?? '',
     email: l.email, company: l.company ?? '', brand: l.brand || BRANDS[0], owner_id: l.owner_id, lead_date: l.lead_date, lead_source: l.lead_source,
     lead_stage: normalizeStageValue(l.lead_stage), connect_date: l.connect_date ?? '', comments: l.comments ?? '',
     followup2_date: l.followup2_date ?? '', followup2_comments: l.followup2_comments ?? '', lead_status: normalizeStatusValue(l.lead_status)
@@ -109,6 +112,10 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
     }
 
     const payload: any = {
+      first_name: f.first_name.trim() || null,
+      last_name: f.last_name.trim() || null,
+      designation: f.designation.trim() || null,
+      contact_no: f.contact_no.trim() || null,
       email,
       company: f.company.trim() || null,
       brand: f.brand.trim() || BRANDS[0],
@@ -123,17 +130,41 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       lead_status: f.lead_status
     };
 
-    let { error } = lead
-      ? await supabase.from('leads').update(payload).eq('id', lead.id)
-      : await supabase.from('leads').insert(payload);
+    let { data: savedLead, error } = lead
+      ? await supabase.from('leads').update(payload).eq('id', lead.id).select().maybeSingle()
+      : await supabase.from('leads').insert(payload).select().maybeSingle();
 
-    if (error && (error.code === 'PGRST204' || error.message?.includes('company'))) {
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
       const fallbackPayload = { ...payload };
-      delete fallbackPayload.company;
+      delete fallbackPayload.first_name;
+      delete fallbackPayload.last_name;
+      delete fallbackPayload.designation;
+      delete fallbackPayload.contact_no;
+      if (error.message?.includes('company')) delete fallbackPayload.company;
+
       const retry = lead
-        ? await supabase.from('leads').update(fallbackPayload).eq('id', lead.id)
-        : await supabase.from('leads').insert(fallbackPayload);
+        ? await supabase.from('leads').update(fallbackPayload).eq('id', lead.id).select().maybeSingle()
+        : await supabase.from('leads').insert(fallbackPayload).select().maybeSingle();
       error = retry.error;
+      savedLead = retry.data;
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
+        const cache = raw ? JSON.parse(raw) : {};
+        const metaKey = savedLead?.id || lead?.id || email;
+        const metaData = {
+          firstName: f.first_name.trim(),
+          lastName: f.last_name.trim(),
+          designation: f.designation.trim(),
+          contactNo: f.contact_no.trim(),
+          company: f.company.trim()
+        };
+        cache[metaKey] = metaData;
+        cache[email] = metaData;
+        localStorage.setItem('sales_lead_metadata_cache_v1', JSON.stringify(cache));
+      } catch {}
     }
 
     setBusy(false);
@@ -182,6 +213,22 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
 
           <fieldset className="fgroup">
             <legend>Lead details</legend>
+            <div className="grid2">
+              <label className="f">First Name
+                <input type="text" value={f.first_name} onChange={e => set('first_name', e.target.value)} placeholder="e.g. John" />
+              </label>
+              <label className="f">Last Name
+                <input type="text" value={f.last_name} onChange={e => set('last_name', e.target.value)} placeholder="e.g. Doe" />
+              </label>
+            </div>
+            <div className="grid2">
+              <label className="f">Designation / Role
+                <input type="text" value={f.designation} onChange={e => set('designation', e.target.value)} placeholder="e.g. VP, CTO, Marketing Head" />
+              </label>
+              <label className="f">Contact Number
+                <input type="tel" value={f.contact_no} onChange={e => set('contact_no', e.target.value)} placeholder="e.g. +91 98765 43210" />
+              </label>
+            </div>
             <label className="f">Email
               <input ref={emailRef} type="email" value={f.email} onChange={e => set('email', e.target.value)} placeholder="name@company.com" />
               {errors.email && <span className="err">{errors.email}</span>}

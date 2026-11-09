@@ -48,6 +48,10 @@ export async function POST(req: Request) {
     const supabase = getAdminClient();
 
     const payload: any = {
+      first_name: body.first_name || body.firstName || '',
+      last_name: body.last_name || body.lastName || '',
+      designation: body.designation || '',
+      contact_no: body.contact_no || body.contactNo || '',
       email: body.email,
       company: body.company || '',
       brand: body.brand || 'Tecnoprism',
@@ -62,7 +66,18 @@ export async function POST(req: Request) {
       lead_status: body.lead_status || 'New',
     };
 
-    const { data, error } = await supabase.from('leads').insert(payload).select().single();
+    let { data, error } = await supabase.from('leads').insert(payload).select().single();
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.first_name;
+      delete fallbackPayload.last_name;
+      delete fallbackPayload.designation;
+      delete fallbackPayload.contact_no;
+      if (error.message?.includes('company')) delete fallbackPayload.company;
+      const retry = await supabase.from('leads').insert(fallbackPayload).select().single();
+      error = retry.error;
+      data = retry.data;
+    }
     if (error) throw error;
 
     return NextResponse.json({ success: true, lead: data }, { headers: corsHeaders });
@@ -85,7 +100,17 @@ export async function PATCH(req: Request) {
     if ('lead_date' in sanitized && !sanitized.lead_date) sanitized.lead_date = new Date().toISOString().split('T')[0];
 
     const supabase = getAdminClient();
-    const { error } = await supabase.from('leads').update(sanitized).eq('id', id);
+    let { error } = await supabase.from('leads').update(sanitized).eq('id', id);
+    if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
+      const fallback = { ...sanitized };
+      delete fallback.first_name;
+      delete fallback.last_name;
+      delete fallback.designation;
+      delete fallback.contact_no;
+      if (error.message?.includes('company')) delete fallback.company;
+      const retry = await supabase.from('leads').update(fallback).eq('id', id);
+      error = retry.error;
+    }
     if (error) throw error;
 
     return NextResponse.json({ success: true }, { headers: corsHeaders });

@@ -12,6 +12,10 @@ export interface Profile {
 export interface Lead {
   id: string;
   email: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  designation?: string | null;
+  contact_no?: string | null;
   company?: string | null;
   brand: string;
   owner_id: string;
