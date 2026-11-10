@@ -154,7 +154,21 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           const firstName = getCol(['first name', 'firstname', 'fname', 'first_name']);
           const lastName = getCol(['last name', 'lastname', 'lname', 'last_name']);
           const designation = getCol(['designation', 'title', 'role', 'job title', 'position']);
-          const contactNo = getCol(['contact no', 'contact number', 'contact', 'phone', 'mobile', 'cell', 'phone number']);
+          const contactNo = getCol([
+            'contact no',
+            'contact number',
+            'contact',
+            'phone',
+            'corporate phone',
+            'corporate phone number',
+            'corp phone',
+            'corporate contact',
+            'mobile',
+            'cell',
+            'phone number',
+            'work direct phone',
+            'direct phone'
+          ]);
           const email = getCol(['email', 'work email', 'email address', 'lead email']);
           const company = getCol(['company', 'company name', 'client']);
           let brand = getCol(['brand', 'brand name']);
@@ -356,7 +370,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
               style={{ width: '100%' }}
             />
             <div className="small muted" style={{ marginTop: 8 }}>
-              Supported columns: <b>First Name, Last Name, Designation, Contact No, Email, Company, Brand, Ownership, Source, Stage</b>
+              Supported columns: <b>First Name, Last Name, Designation, Contact No / Corporate Phone, Email, Company, Brand, Ownership, Source, Stage</b>
             </div>
           </div>
 

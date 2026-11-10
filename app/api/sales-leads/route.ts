@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       first_name: body.first_name || body.firstName || '',
       last_name: body.last_name || body.lastName || '',
       designation: body.designation || '',
-      contact_no: body.contact_no || body.contactNo || '',
+      contact_no: body.contact_no || body.contactNo || body.corporate_phone || body.corporatePhone || body['Corporate Phone'] || body.phone || '',
       email: body.email,
       company: body.company || '',
       brand: body.brand || 'Tecnoprism',
