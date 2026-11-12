@@ -66,6 +66,49 @@ export async function POST(req: Request) {
       lead_status: body.lead_status || 'New',
     };
 
+    const cleanEmail = String(body.email || '').trim().toLowerCase();
+    if (cleanEmail) {
+      const { data: existingLeads } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('email', cleanEmail)
+        .limit(1);
+
+      if (existingLeads && existingLeads.length > 0) {
+        const existing = existingLeads[0];
+        const patch: any = {};
+        if (payload.first_name && payload.first_name !== existing.first_name) patch.first_name = payload.first_name;
+        if (payload.last_name && payload.last_name !== existing.last_name) patch.last_name = payload.last_name;
+        if (payload.designation && payload.designation !== existing.designation) patch.designation = payload.designation;
+        if (payload.contact_no && payload.contact_no !== existing.contact_no) patch.contact_no = payload.contact_no;
+        if (payload.company && payload.company !== existing.company) patch.company = payload.company;
+        if (payload.brand && payload.brand !== existing.brand) patch.brand = payload.brand;
+        if (payload.lead_source && payload.lead_source !== existing.lead_source) patch.lead_source = payload.lead_source;
+        if (payload.lead_stage && payload.lead_stage !== existing.lead_stage) patch.lead_stage = payload.lead_stage;
+        if (payload.lead_status && payload.lead_status !== existing.lead_status) patch.lead_status = payload.lead_status;
+        if (payload.comments && payload.comments !== existing.comments) patch.comments = payload.comments;
+
+        if (Object.keys(patch).length > 0) {
+          let { data: updatedData, error: updateErr } = await supabase.from('leads').update(patch).eq('id', existing.id).select().single();
+          if (updateErr && (updateErr.code === 'PGRST204' || updateErr.message?.includes('column') || updateErr.message?.includes('company'))) {
+            const fallbackPatch = { ...patch };
+            delete fallbackPatch.first_name;
+            delete fallbackPatch.last_name;
+            delete fallbackPatch.designation;
+            delete fallbackPatch.contact_no;
+            if (updateErr.message?.includes('company')) delete fallbackPatch.company;
+            if (Object.keys(fallbackPatch).length > 0) {
+              const retry = await supabase.from('leads').update(fallbackPatch).eq('id', existing.id).select().single();
+              updatedData = retry.data;
+            }
+          }
+          return NextResponse.json({ success: true, updated: true, lead: updatedData || existing }, { headers: corsHeaders });
+        } else {
+          return NextResponse.json({ success: true, duplicate: true, lead: existing }, { headers: corsHeaders });
+        }
+      }
+    }
+
     let { data, error } = await supabase.from('leads').insert(payload).select().single();
     if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
       const fallbackPayload = { ...payload };

@@ -252,59 +252,183 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
 
     try {
       const supabase = createClient();
-      const insertData = parsed.map(l => {
-        return {
-          first_name: l.first_name || null,
-          last_name: l.last_name || null,
-          designation: l.designation || null,
-          contact_no: l.contact_no || null,
-          email: l.email.toLowerCase(),
-          company: l.company || null,
-          brand: l.brand,
-          owner_id: l.owner_id,
-          lead_source: l.lead_source,
-          lead_stage: l.lead_stage,
-          lead_status: l.lead_status || 'New',
-          comments: l.comments || undefined
-        };
-      });
 
-      let { data: insertedLeads, error } = await supabase.from('leads').insert(insertData).select();
-      if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
-        const fallbackInsert = insertData.map(({ first_name, last_name, designation, contact_no, company, ...rest }: any) => {
-          const item: any = { ...rest };
-          if (!error.message?.includes('company')) item.company = company;
-          return item;
-        });
-        const retry = await supabase.from('leads').insert(fallbackInsert).select();
-        error = retry.error;
-        insertedLeads = retry.data;
+      // Read metadata cache for client-persisted fields (phone, designation, etc.)
+      let metaCache: Record<string, any> = {};
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
+          if (raw) metaCache = JSON.parse(raw);
+        } catch {}
       }
 
-      if (error) {
-        setError(error.message);
-        setBusy(false);
-        return;
+      // Deduplicate within the uploaded file itself (latest occurrence in sheet takes precedence)
+      const dedupedMap = new Map<string, ParsedLead>();
+      parsed.forEach(l => {
+        const key = l.email.toLowerCase();
+        dedupedMap.set(key, l);
+      });
+      const uniqueParsed = Array.from(dedupedMap.values());
+
+      // Query all existing leads with these emails
+      const uniqueEmails = Array.from(new Set(uniqueParsed.map(l => l.email.toLowerCase())));
+      const existingMap = new Map<string, any>();
+      for (let i = 0; i < uniqueEmails.length; i += 100) {
+        const chunk = uniqueEmails.slice(i, i + 100);
+        const { data } = await supabase.from('leads').select('*').in('email', chunk);
+        ((data as any[]) || []).forEach((row: any) => existingMap.set(row.email.toLowerCase(), row));
+      }
+
+      const toInsert: ParsedLead[] = [];
+      const toUpdate: { id: string; email: string; patch: any; patchMeta: any }[] = [];
+      let skippedCount = 0;
+
+      for (const l of uniqueParsed) {
+        const emailKey = l.email.toLowerCase();
+        const existing = existingMap.get(emailKey);
+
+        if (existing) {
+          // Lead already exists! Check if phone/contact_no or any other field changed
+          const existingMeta = metaCache[existing.id] || metaCache[emailKey] || {};
+          const curFirstName = existing.first_name || existingMeta.firstName || '';
+          const curLastName = existing.last_name || existingMeta.lastName || '';
+          const curDesignation = existing.designation || existingMeta.designation || '';
+          const curContactNo = existing.contact_no || existingMeta.contactNo || '';
+          const curCompany = existing.company || existingMeta.company || '';
+
+          const patch: any = {};
+          const patchMeta: any = {};
+
+          if (l.first_name && l.first_name !== curFirstName) {
+            patch.first_name = l.first_name;
+            patchMeta.firstName = l.first_name;
+          }
+          if (l.last_name && l.last_name !== curLastName) {
+            patch.last_name = l.last_name;
+            patchMeta.lastName = l.last_name;
+          }
+          if (l.designation && l.designation !== curDesignation) {
+            patch.designation = l.designation;
+            patchMeta.designation = l.designation;
+          }
+          if (l.contact_no && l.contact_no !== curContactNo) {
+            patch.contact_no = l.contact_no;
+            patchMeta.contactNo = l.contact_no;
+          }
+          if (l.company && l.company !== curCompany) {
+            patch.company = l.company;
+            patchMeta.company = l.company;
+          }
+          if (l.brand && l.brand !== existing.brand) {
+            patch.brand = l.brand;
+          }
+          if (l.owner_id && l.owner_id !== existing.owner_id) {
+            patch.owner_id = l.owner_id;
+          }
+          if (l.lead_source && l.lead_source !== existing.lead_source) {
+            patch.lead_source = l.lead_source;
+          }
+          if (l.lead_stage && l.lead_stage !== existing.lead_stage) {
+            patch.lead_stage = l.lead_stage;
+          }
+          if (l.lead_status && l.lead_status !== existing.lead_status) {
+            patch.lead_status = l.lead_status;
+          }
+          if (l.comments && l.comments !== existing.comments) {
+            patch.comments = l.comments;
+          }
+
+          if (Object.keys(patch).length > 0) {
+            toUpdate.push({ id: existing.id, email: emailKey, patch, patchMeta });
+          } else {
+            // Unchanged duplicate — do not insert duplicate
+            skippedCount++;
+          }
+        } else {
+          // Brand new lead
+          toInsert.push(l);
+        }
+      }
+
+      // 1. Process updates for existing leads with changed data
+      let updatedCount = 0;
+      for (const item of toUpdate) {
+        let { error: updateErr } = await supabase.from('leads').update(item.patch).eq('id', item.id);
+        if (updateErr && (updateErr.code === 'PGRST204' || updateErr.message?.includes('column') || updateErr.message?.includes('company'))) {
+          const fallbackPatch = { ...item.patch };
+          delete fallbackPatch.first_name;
+          delete fallbackPatch.last_name;
+          delete fallbackPatch.designation;
+          delete fallbackPatch.contact_no;
+          if (updateErr.message?.includes('company')) delete fallbackPatch.company;
+          if (Object.keys(fallbackPatch).length > 0) {
+            await supabase.from('leads').update(fallbackPatch).eq('id', item.id);
+          }
+        }
+
+        metaCache[item.id] = { ...(metaCache[item.id] || {}), ...item.patchMeta };
+        metaCache[item.email] = metaCache[item.id];
+        updatedCount++;
+      }
+
+      // 2. Process inserts for new leads
+      let insertedCount = 0;
+      if (toInsert.length > 0) {
+        const insertData = toInsert.map(l => {
+          return {
+            first_name: l.first_name || null,
+            last_name: l.last_name || null,
+            designation: l.designation || null,
+            contact_no: l.contact_no || null,
+            email: l.email.toLowerCase(),
+            company: l.company || null,
+            brand: l.brand,
+            owner_id: l.owner_id,
+            lead_source: l.lead_source,
+            lead_stage: l.lead_stage,
+            lead_status: l.lead_status || 'New',
+            comments: l.comments || undefined
+          };
+        });
+
+        let { data: insertedLeads, error } = await supabase.from('leads').insert(insertData).select();
+        if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
+          const fallbackInsert = insertData.map(({ first_name, last_name, designation, contact_no, company, ...rest }: any) => {
+            const item: any = { ...rest };
+            if (!error.message?.includes('company')) item.company = company;
+            return item;
+          });
+          const retry = await supabase.from('leads').insert(fallbackInsert).select();
+          error = retry.error;
+          insertedLeads = retry.data;
+        }
+
+        if (error) {
+          setError(error.message);
+          setBusy(false);
+          return;
+        }
+
+        toInsert.forEach((p, idx) => {
+          const saved = insertedLeads?.[idx];
+          const metaKey = saved?.id || p.email.toLowerCase();
+          const meta = {
+            firstName: p.first_name || '',
+            lastName: p.last_name || '',
+            designation: p.designation || '',
+            contactNo: p.contact_no || '',
+            company: p.company || ''
+          };
+          metaCache[metaKey] = meta;
+          metaCache[p.email.toLowerCase()] = meta;
+        });
+
+        insertedCount = toInsert.length;
       }
 
       if (typeof window !== 'undefined') {
         try {
-          const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
-          const cache = raw ? JSON.parse(raw) : {};
-          parsed.forEach((p, idx) => {
-            const saved = insertedLeads?.[idx];
-            const metaKey = saved?.id || p.email.toLowerCase();
-            const meta = {
-              firstName: p.first_name || '',
-              lastName: p.last_name || '',
-              designation: p.designation || '',
-              contactNo: p.contact_no || '',
-              company: p.company || ''
-            };
-            cache[metaKey] = meta;
-            cache[p.email.toLowerCase()] = meta;
-          });
-          localStorage.setItem('sales_lead_metadata_cache_v1', JSON.stringify(cache));
+          localStorage.setItem('sales_lead_metadata_cache_v1', JSON.stringify(metaCache));
         } catch {}
       }
 
@@ -324,7 +448,19 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         }
       }
 
-      toast.show(`Successfully imported & allocated ${parsed.length} leads!`);
+      // Friendly notification message detailing deduplication results
+      let successMsg = '';
+      if (insertedCount > 0 && updatedCount > 0) {
+        successMsg = `Import completed: ${insertedCount} new leads added, ${updatedCount} existing leads updated with changed details, ${skippedCount} duplicates skipped.`;
+      } else if (insertedCount > 0) {
+        successMsg = `Import completed: ${insertedCount} new leads added${skippedCount > 0 ? ` (${skippedCount} duplicates skipped)` : ''}.`;
+      } else if (updatedCount > 0) {
+        successMsg = `Import completed: ${updatedCount} existing leads updated with new details${skippedCount > 0 ? ` (${skippedCount} unchanged duplicates skipped)` : ''}.`;
+      } else {
+        successMsg = `All ${skippedCount} leads already exist with identical details. No duplicate leads were added.`;
+      }
+
+      toast.show(successMsg);
       await reload();
       setBusy(false);
       onClose();

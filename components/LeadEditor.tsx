@@ -130,8 +130,18 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       lead_status: f.lead_status
     };
 
-    let { data: savedLead, error } = lead
-      ? await supabase.from('leads').update(payload).eq('id', lead.id).select().maybeSingle()
+    let targetLead = lead;
+    let wasExistingDuplicate = false;
+    if (!targetLead) {
+      const { data: existingLeads } = await supabase.from('leads').select('*').eq('email', email).limit(1);
+      if (existingLeads && existingLeads.length > 0) {
+        targetLead = existingLeads[0];
+        wasExistingDuplicate = true;
+      }
+    }
+
+    let { data: savedLead, error } = targetLead
+      ? await supabase.from('leads').update(payload).eq('id', targetLead.id).select().maybeSingle()
       : await supabase.from('leads').insert(payload).select().maybeSingle();
 
     if (error && (error.code === 'PGRST204' || error.message?.includes('column') || error.message?.includes('company'))) {
@@ -142,8 +152,8 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       delete fallbackPayload.contact_no;
       if (error.message?.includes('company')) delete fallbackPayload.company;
 
-      const retry = lead
-        ? await supabase.from('leads').update(fallbackPayload).eq('id', lead.id).select().maybeSingle()
+      const retry = targetLead
+        ? await supabase.from('leads').update(fallbackPayload).eq('id', targetLead.id).select().maybeSingle()
         : await supabase.from('leads').insert(fallbackPayload).select().maybeSingle();
       error = retry.error;
       savedLead = retry.data;
@@ -153,7 +163,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       try {
         const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
         const cache = raw ? JSON.parse(raw) : {};
-        const metaKey = savedLead?.id || lead?.id || email;
+        const metaKey = savedLead?.id || targetLead?.id || email;
         const metaData = {
           firstName: f.first_name.trim(),
           lastName: f.last_name.trim(),
@@ -177,9 +187,11 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       return;
     }
     
-    const isReallocation = lead && isAdmin && lead.owner_id !== f.owner_id;
+    const isReallocation = targetLead && isAdmin && targetLead.owner_id !== f.owner_id;
     const newOwnerName = people.find(p => p.id === f.owner_id)?.full_name || 'sales member';
-    const msg = lead
+    const msg = wasExistingDuplicate
+      ? `Existing lead found for ${email} — updated with the latest details.`
+      : targetLead
       ? (isReallocation ? `Lead allotted to ${newOwnerName}` : 'Changes saved')
       : 'Lead added';
 
