@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { describeActivity, fmtDateTime, formatMemberName, normalizeStageValue, normalizeStatusValue, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
+import { encodeLeadComments, decodeLeadComments } from '@/lib/metaHelper';
 
 type Form = {
   first_name: string; last_name: string; designation: string; contact_no: string;
@@ -34,11 +35,24 @@ function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
 }
 
 function fromLead(l: Lead): Form {
+  const { comments: cleanComments, meta } = decodeLeadComments(l.comments);
   return {
-    first_name: l.first_name ?? '', last_name: l.last_name ?? '', designation: l.designation ?? '', contact_no: l.contact_no ?? '',
-    email: l.email, company: l.company ?? '', brand: l.brand || BRANDS[0], owner_id: l.owner_id, lead_date: l.lead_date, lead_source: l.lead_source,
-    lead_stage: normalizeStageValue(l.lead_stage), connect_date: l.connect_date ?? '', comments: l.comments ?? '',
-    followup2_date: l.followup2_date ?? '', followup2_comments: l.followup2_comments ?? '', lead_status: normalizeStatusValue(l.lead_status)
+    first_name: l.first_name || meta.first_name || '',
+    last_name: l.last_name || meta.last_name || '',
+    designation: l.designation || meta.designation || '',
+    contact_no: l.contact_no || meta.contact_no || '',
+    email: l.email,
+    company: l.company ?? '',
+    brand: l.brand || BRANDS[0],
+    owner_id: l.owner_id,
+    lead_date: l.lead_date,
+    lead_source: l.lead_source,
+    lead_stage: normalizeStageValue(l.lead_stage),
+    connect_date: l.connect_date ?? '',
+    comments: cleanComments || '',
+    followup2_date: l.followup2_date ?? '',
+    followup2_comments: l.followup2_comments ?? '',
+    lead_status: normalizeStatusValue(l.lead_status)
   };
 }
 
@@ -111,6 +125,13 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       }
     }
 
+    const storedComments = encodeLeadComments(f.comments.trim(), {
+      first_name: f.first_name.trim(),
+      last_name: f.last_name.trim(),
+      designation: f.designation.trim(),
+      contact_no: f.contact_no.trim()
+    });
+
     const payload: any = {
       first_name: f.first_name.trim() || null,
       last_name: f.last_name.trim() || null,
@@ -124,7 +145,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       lead_source: f.lead_source,
       lead_stage: f.lead_stage,
       connect_date: f.connect_date || null,
-      comments: f.comments.trim() || null,
+      comments: storedComments || null,
       followup2_date: f.followup2_date || null,
       followup2_comments: f.followup2_comments.trim() || null,
       lead_status: f.lead_status

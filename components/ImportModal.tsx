@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/types';
 import { useToast } from './Toast';
+import { parseLeadRow, extractFromRow, encodeLeadComments, enrichLeadRecord } from '@/lib/metaHelper';
 
 interface Props {
   open: boolean;
@@ -141,50 +142,28 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         const leadsList: ParsedLead[] = [];
 
         rawData.forEach(row => {
-          // Flexible key lookup
-          const getCol = (names: string[]) => {
-            for (const key of Object.keys(row)) {
-              if (names.some(n => key.trim().toLowerCase() === n.toLowerCase())) {
-                return String(row[key]).trim();
-              }
-            }
-            return '';
-          };
+          const parsed = parseLeadRow(row);
+          const firstName = parsed.firstName;
+          const lastName = parsed.lastName;
+          const designation = parsed.designation;
+          const contactNo = parsed.contactNo;
+          const email = parsed.email;
+          let company = parsed.company;
 
-          const firstName = getCol(['first name', 'firstname', 'fname', 'first_name']);
-          const lastName = getCol(['last name', 'lastname', 'lname', 'last_name']);
-          const designation = getCol(['designation', 'title', 'role', 'job title', 'position']);
-          const contactNo = getCol([
-            'contact no',
-            'contact number',
-            'contact',
-            'phone',
-            'corporate phone',
-            'corporate phone number',
-            'corp phone',
-            'corporate contact',
-            'mobile',
-            'cell',
-            'phone number',
-            'work direct phone',
-            'direct phone'
-          ]);
-          const email = getCol(['email', 'work email', 'email address', 'lead email']);
-          const company = getCol(['company', 'company name', 'client']);
-          let brand = getCol(['brand', 'brand name']);
+          let brand = extractFromRow(row, ['brand', 'brand name']);
           if (!brand) {
-            brand = getCol(['company', 'company name']) || BRANDS[0];
+            brand = company || BRANDS[0];
           }
           if (!BRANDS.includes(brand)) {
             const matchedBrand = BRANDS.find(b => b.toLowerCase() === brand.toLowerCase());
             brand = matchedBrand || BRANDS[0];
           }
 
-          const ownerRaw = getCol(['owner', 'ownership', 'owner name', 'sales member', 'assigned to', 'allocated to']);
-          const source = getCol(['source', 'lead source', 'channel']) || 'Excel Import';
-          const rawStage = getCol(['stage', 'lead stage']);
-          const rawStatus = getCol(['status', 'lead status']);
-          const comments = getCol(['comments', 'notes']);
+          const ownerRaw = extractFromRow(row, ['owner', 'ownership', 'owner name', 'sales member', 'assigned to', 'allocated to']);
+          const source = extractFromRow(row, ['source', 'lead source', 'channel']) || 'Excel Import';
+          const rawStage = extractFromRow(row, ['stage', 'lead stage']);
+          const rawStatus = extractFromRow(row, ['status', 'lead status']);
+          const comments = extractFromRow(row, ['comments', 'notes', 'comment', 'note']);
 
           if (!email) return; // Skip invalid rows
 
@@ -276,7 +255,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       for (let i = 0; i < uniqueEmails.length; i += 100) {
         const chunk = uniqueEmails.slice(i, i + 100);
         const { data } = await supabase.from('leads').select('*').in('email', chunk);
-        ((data as any[]) || []).forEach((row: any) => existingMap.set(row.email.toLowerCase(), row));
+        ((data as any[]) || []).forEach((row: any) => existingMap.set(row.email.toLowerCase(), enrichLeadRecord(row, metaCache)));
       }
 
       const toInsert: ParsedLead[] = [];
@@ -339,6 +318,13 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           }
 
           if (Object.keys(patch).length > 0) {
+            const nextComments = patch.comments || existing.comments || '';
+            patch.comments = encodeLeadComments(nextComments, {
+              first_name: patch.first_name || curFirstName,
+              last_name: patch.last_name || curLastName,
+              designation: patch.designation || curDesignation,
+              contact_no: patch.contact_no || curContactNo
+            });
             toUpdate.push({ id: existing.id, email: emailKey, patch, patchMeta });
           } else {
             // Unchanged duplicate — do not insert duplicate
@@ -375,6 +361,12 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       let insertedCount = 0;
       if (toInsert.length > 0) {
         const insertData = toInsert.map(l => {
+          const encodedComments = encodeLeadComments(l.comments, {
+            first_name: l.first_name,
+            last_name: l.last_name,
+            designation: l.designation,
+            contact_no: l.contact_no
+          });
           return {
             first_name: l.first_name || null,
             last_name: l.last_name || null,
@@ -387,7 +379,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             lead_source: l.lead_source,
             lead_stage: l.lead_stage,
             lead_status: l.lead_status || 'New',
-            comments: l.comments || undefined
+            comments: encodedComments
           };
         });
 

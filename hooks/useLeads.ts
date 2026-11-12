@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Lead } from '@/lib/types';
+import { enrichLeadRecord } from '@/lib/metaHelper';
 
 const PAGE = 1000;
 
@@ -35,17 +36,7 @@ export function useLeads() {
       } catch {}
     }
 
-    const enriched = all.map(l => {
-      const meta = metaMap[l.id] || metaMap[l.email?.toLowerCase()] || {};
-      return {
-        ...l,
-        first_name: l.first_name || meta.firstName || meta.first_name || '',
-        last_name: l.last_name || meta.lastName || meta.last_name || '',
-        designation: l.designation || meta.designation || '',
-        contact_no: l.contact_no || meta.contactNo || meta.contact_no || '',
-        company: l.company || meta.company || ''
-      };
-    });
+    const enriched = all.map(l => enrichLeadRecord(l, metaMap));
 
     setLeads(enriched);
     setError(null);
