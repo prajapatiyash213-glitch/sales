@@ -43,6 +43,45 @@ export function extractFromRow(row: Record<string, any>, aliasList: string[]): s
   return '';
 }
 
+export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function sanitizeAndExtractEmail(raw: any): string {
+  if (!raw) return '';
+  let str = String(raw).trim();
+  str = str.replace(/^mailto:/i, '').replace(/^[<("'`]+|[>)"'`]+$/g, '').trim();
+  if (EMAIL_REGEX.test(str)) return str.toLowerCase();
+  const m = str.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+  if (m && EMAIL_REGEX.test(m[0])) return m[0].toLowerCase();
+  return '';
+}
+
+export function extractEmailFromRow(row: Record<string, any>): string {
+  const normAliases = ['email', 'emailid', 'workemail', 'emailaddress', 'leademail'];
+
+  // 1st pass: exact match on alias
+  for (const alias of normAliases) {
+    for (const key of Object.keys(row)) {
+      if (normalizeKey(key) === alias) {
+        const email = sanitizeAndExtractEmail(row[key]);
+        if (email) return email;
+      }
+    }
+  }
+
+  // 2nd pass: contains alias, but explicitly ignore non-email fields like "Company Name for Emails" or "Email Open"
+  for (const alias of normAliases) {
+    for (const key of Object.keys(row)) {
+      const k = normalizeKey(key);
+      if (k.includes(alias) && !k.includes('company') && !k.includes('status') && !k.includes('source') && !k.includes('open') && !k.includes('bounce')) {
+        const email = sanitizeAndExtractEmail(row[key]);
+        if (email) return email;
+      }
+    }
+  }
+
+  return '';
+}
+
 export const FIRST_NAME_ALIASES = ['first name', 'firstname', 'fname', 'first_name', 'given name'];
 export const LAST_NAME_ALIASES = ['last name', 'lastname', 'lname', 'last_name', 'surname'];
 export const FULL_NAME_ALIASES = ['name', 'full name', 'fullname', 'contact name', 'person name', 'lead name'];
@@ -83,7 +122,7 @@ export function parseLeadRow(row: Record<string, any>) {
   }
   const designation = extractFromRow(row, DESIGNATION_ALIASES);
   const contactNo = extractFromRow(row, CONTACT_NO_ALIASES);
-  const email = extractFromRow(row, EMAIL_ALIASES);
+  const email = extractEmailFromRow(row);
   const company = extractFromRow(row, COMPANY_ALIASES);
 
   return { firstName, lastName, designation, contactNo, email, company };

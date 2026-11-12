@@ -10,7 +10,9 @@ import {
   LAST_NAME_ALIASES,
   DESIGNATION_ALIASES,
   COMPANY_ALIASES,
-  extractFromRow
+  extractFromRow,
+  EMAIL_REGEX,
+  sanitizeAndExtractEmail
 } from '@/lib/metaHelper';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://takqbngsfdwburtujtsc.supabase.co';
@@ -61,6 +63,14 @@ export async function POST(req: Request) {
     const body = await req.json();
     const supabase = getAdminClient();
 
+    const cleanEmail = sanitizeAndExtractEmail(body.email);
+    if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) {
+      return NextResponse.json(
+        { error: 'Valid email address is required (violates email_format: name@domain.com)' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     const firstName = extractFromRow(body, FIRST_NAME_ALIASES) || cleanValue(body.first_name || body.firstName || '');
     const lastName = extractFromRow(body, LAST_NAME_ALIASES) || cleanValue(body.last_name || body.lastName || '');
     const designation = extractFromRow(body, DESIGNATION_ALIASES) || cleanValue(body.designation || body.title || '');
@@ -84,7 +94,7 @@ export async function POST(req: Request) {
       last_name: lastName,
       designation,
       contact_no: contactNo,
-      email: body.email,
+      email: cleanEmail,
       company: company,
       brand: body.brand || 'Tecnoprism',
       owner_id: body.owner_id || 'e1914945-b140-46b6-b13d-82b45f053f24',
@@ -98,7 +108,6 @@ export async function POST(req: Request) {
       lead_status: body.lead_status || 'New',
     };
 
-    const cleanEmail = String(body.email || '').trim().toLowerCase();
     if (cleanEmail) {
       const { data: existingLeads } = await supabase
         .from('leads')

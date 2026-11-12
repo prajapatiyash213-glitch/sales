@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/lib/types';
 import { useToast } from './Toast';
-import { parseLeadRow, extractFromRow, encodeLeadComments, enrichLeadRecord } from '@/lib/metaHelper';
+import { parseLeadRow, extractFromRow, encodeLeadComments, enrichLeadRecord, EMAIL_REGEX, sanitizeAndExtractEmail } from '@/lib/metaHelper';
 
 interface Props {
   open: boolean;
@@ -165,7 +165,8 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           const rawStatus = extractFromRow(row, ['status', 'lead status']);
           const comments = extractFromRow(row, ['comments', 'notes', 'comment', 'note']);
 
-          if (!email) return; // Skip invalid rows
+          const cleanEmail = sanitizeAndExtractEmail(email);
+          if (!cleanEmail || !EMAIL_REGEX.test(cleanEmail)) return; // Skip invalid rows or rows without valid emails
 
           const stage = normalizeStage(rawStage);
           const status = normalizeStatus(rawStatus);
@@ -177,7 +178,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             last_name: lastName,
             designation,
             contact_no: contactNo,
-            email,
+            email: cleanEmail,
             company,
             brand,
             owner_id: allocatedOwner.id,
@@ -360,7 +361,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       // 2. Process inserts for new leads
       let insertedCount = 0;
       if (toInsert.length > 0) {
-        const insertData = toInsert.map(l => {
+        const insertData = toInsert.filter(l => l.email && EMAIL_REGEX.test(l.email)).map(l => {
           const encodedComments = encodeLeadComments(l.comments, {
             first_name: l.first_name,
             last_name: l.last_name,
