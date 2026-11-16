@@ -94,6 +94,7 @@ alter table public.leads add column if not exists contact_no text default '';
 -- Remove restrictive check constraints so custom stages and statuses never fail
 alter table public.leads drop constraint if exists leads_lead_stage_check;
 alter table public.leads drop constraint if exists leads_lead_status_check;
+alter table public.leads drop constraint if exists email_format;
 
 create index if not exists leads_owner_idx on public.leads (owner_id);
 create index if not exists leads_email_idx on public.leads (lower(email));

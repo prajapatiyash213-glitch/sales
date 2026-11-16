@@ -28,9 +28,10 @@ interface ParsedLead {
   lead_stage: string;
   lead_status: string;
   comments?: string;
-  date_of_connect?: string;
-  followup2_date?: string;
-  followup2_comments?: string;
+  connect_date?: string | null;
+  date_of_connect?: string | null;
+  followup2_date?: string | null;
+  followup2_comments?: string | null;
 }
 
 interface UploadedFileInfo {
@@ -186,7 +187,10 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             lead_source: source,
             lead_stage: stage,
             lead_status: status,
-            comments
+            connect_date: parsed.connectDate,
+            comments: parsed.comments,
+            followup2_date: parsed.followup2Date,
+            followup2_comments: parsed.followup2Comments
           });
         });
 
@@ -314,6 +318,15 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
           if (l.lead_status && l.lead_status !== existing.lead_status) {
             patch.lead_status = l.lead_status;
           }
+          if (l.connect_date && l.connect_date !== existing.connect_date) {
+            patch.connect_date = l.connect_date;
+          }
+          if (l.followup2_date && l.followup2_date !== existing.followup2_date) {
+            patch.followup2_date = l.followup2_date;
+          }
+          if (l.followup2_comments && l.followup2_comments !== existing.followup2_comments) {
+            patch.followup2_comments = l.followup2_comments;
+          }
           if (l.comments && l.comments !== existing.comments) {
             patch.comments = l.comments;
           }
@@ -380,7 +393,10 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             lead_source: l.lead_source,
             lead_stage: l.lead_stage,
             lead_status: l.lead_status || 'New',
-            comments: encodedComments
+            connect_date: l.connect_date || null,
+            comments: encodedComments,
+            followup2_date: l.followup2_date || null,
+            followup2_comments: l.followup2_comments || null
           };
         });
 
@@ -397,7 +413,11 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         }
 
         if (error) {
-          setError(error.message);
+          if (error.code === '23514' || error.message?.includes('check constraint') || error.message?.includes('email_format')) {
+            setError(`Database constraint error: ${error.message}. Run this command in Supabase SQL Editor to allow all emails:\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS email_format;`);
+          } else {
+            setError(error.message);
+          }
           setBusy(false);
           return;
         }

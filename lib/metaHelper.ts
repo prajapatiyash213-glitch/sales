@@ -82,6 +82,58 @@ export function extractEmailFromRow(row: Record<string, any>): string {
   return '';
 }
 
+export function parseFlexibleDate(val: any): string | null {
+  if (!val) return null;
+  let str = String(val).trim();
+  if (!str || str.toLowerCase() === 'undefined' || str.toLowerCase() === 'null') return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) return isoMatch[1];
+
+  if (typeof val === 'number' || /^\d{5}$/.test(str)) {
+    const num = Number(val);
+    if (!isNaN(num) && num > 20000 && num < 60000) {
+      const utc_days = Math.floor(num - 25569);
+      const utc_value = utc_days * 86400;
+      const date_info = new Date(utc_value * 1000);
+      return date_info.toISOString().split('T')[0];
+    }
+  }
+
+  const dmyMatch = str.match(/^(\d{1,2})[\.\/-](\d{1,2})[\.\/-](\d{4})/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  const clean = str.replace(/(\d+)(st|nd|rd|th)/gi, '$1');
+  if (!/\d{4}/.test(clean)) {
+    const currentYear = new Date().getFullYear();
+    const withYear = `${clean} ${currentYear}`;
+    const pYear = new Date(withYear);
+    if (!isNaN(pYear.getTime())) {
+      const y = pYear.getFullYear();
+      const m = String(pYear.getMonth() + 1).padStart(2, '0');
+      const d = String(pYear.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+  }
+
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  return null;
+}
+
 export const FIRST_NAME_ALIASES = ['first name', 'firstname', 'fname', 'first_name', 'given name'];
 export const LAST_NAME_ALIASES = ['last name', 'lastname', 'lname', 'last_name', 'surname'];
 export const FULL_NAME_ALIASES = ['name', 'full name', 'fullname', 'contact name', 'person name', 'lead name'];
@@ -109,6 +161,50 @@ export const CONTACT_NO_ALIASES = [
 export const EMAIL_ALIASES = ['email', 'email id', 'work email', 'email address', 'lead email'];
 export const COMPANY_ALIASES = ['company', 'company name', 'company name for emails', 'client', 'account', 'organization'];
 
+export const CONNECT_DATE_ALIASES = [
+  'date of connect',
+  'connect date',
+  'date of contact',
+  'first connect date',
+  'connect_date',
+  'date'
+];
+
+export const COMMENTS_ALIASES = [
+  'comments',
+  'comment',
+  'first connect comments',
+  'connect comments',
+  'action',
+  'lead comment',
+  'notes',
+  'note'
+];
+
+export const FOLLOWUP2_DATE_ALIASES = [
+  'follow-up 2 date',
+  'followup 2 date',
+  'follow up 2 date',
+  'followup2 date',
+  'follow-up date',
+  'followup date',
+  'followup2_date'
+];
+
+export const FOLLOWUP2_COMMENTS_ALIASES = [
+  'follow-up 2 comments',
+  'follow-up 2 notes',
+  'followup 2 comments',
+  'followup 2 notes',
+  'follow-up briefs',
+  'follow-up comments',
+  'followup comments',
+  'comments_1',
+  'comments 2',
+  'second comments',
+  'followup2_comments'
+];
+
 export function parseLeadRow(row: Record<string, any>) {
   let firstName = extractFromRow(row, FIRST_NAME_ALIASES);
   let lastName = extractFromRow(row, LAST_NAME_ALIASES);
@@ -124,8 +220,23 @@ export function parseLeadRow(row: Record<string, any>) {
   const contactNo = extractFromRow(row, CONTACT_NO_ALIASES);
   const email = extractEmailFromRow(row);
   const company = extractFromRow(row, COMPANY_ALIASES);
+  const connectDate = parseFlexibleDate(extractFromRow(row, CONNECT_DATE_ALIASES));
+  const comments = extractFromRow(row, COMMENTS_ALIASES);
+  const followup2Date = parseFlexibleDate(extractFromRow(row, FOLLOWUP2_DATE_ALIASES));
+  const followup2Comments = extractFromRow(row, FOLLOWUP2_COMMENTS_ALIASES);
 
-  return { firstName, lastName, designation, contactNo, email, company };
+  return {
+    firstName,
+    lastName,
+    designation,
+    contactNo,
+    email,
+    company,
+    connectDate,
+    comments,
+    followup2Date,
+    followup2Comments
+  };
 }
 
 export function encodeLeadComments(
@@ -166,9 +277,14 @@ export function enrichLeadRecord(lead: any, metaCache: Record<string, any> = {})
   const designation = lead.designation || commentMeta.designation || idMeta?.designation || emailMeta?.designation || '';
   const contactNo = lead.contact_no || commentMeta.contact_no || idMeta?.contactNo || idMeta?.contact_no || emailMeta?.contactNo || emailMeta?.contact_no || '';
   const company = lead.company || idMeta?.company || emailMeta?.company || '';
+  const connectDate = parseFlexibleDate(lead.connect_date || lead.date_of_connect) || lead.connect_date || lead.date_of_connect || null;
+  const followup2Date = parseFlexibleDate(lead.followup2_date) || lead.followup2_date || null;
 
   return {
     ...lead,
+    connect_date: connectDate,
+    followup2_date: followup2Date,
+    followup2_comments: lead.followup2_comments || '',
     comments: cleanComments,
     first_name: firstName,
     last_name: lastName,

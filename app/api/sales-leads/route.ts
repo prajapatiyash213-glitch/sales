@@ -5,6 +5,7 @@ import {
   encodeLeadComments,
   decodeLeadComments,
   enrichLeadRecord,
+  parseFlexibleDate,
   CONTACT_NO_ALIASES,
   FIRST_NAME_ALIASES,
   LAST_NAME_ALIASES,
@@ -98,12 +99,12 @@ export async function POST(req: Request) {
       company: company,
       brand: body.brand || 'Tecnoprism',
       owner_id: body.owner_id || 'e1914945-b140-46b6-b13d-82b45f053f24',
-      lead_date: body.lead_date || new Date().toISOString().split('T')[0],
+      lead_date: parseFlexibleDate(body.lead_date) || new Date().toISOString().split('T')[0],
       lead_source: body.lead_source || 'Inbound - Referral',
       lead_stage: body.lead_stage || 'Discovery',
-      connect_date: body.connect_date || null,
+      connect_date: parseFlexibleDate(body.connect_date || body.date_of_connect),
       comments: storedComments,
-      followup2_date: body.followup2_date || null,
+      followup2_date: parseFlexibleDate(body.followup2_date),
       followup2_comments: body.followup2_comments || null,
       lead_status: body.lead_status || 'New',
     };
@@ -129,6 +130,16 @@ export async function POST(req: Request) {
         if (payload.lead_source && payload.lead_source !== existing.lead_source) patch.lead_source = payload.lead_source;
         if (payload.lead_stage && payload.lead_stage !== existing.lead_stage) patch.lead_stage = payload.lead_stage;
         if (payload.lead_status && payload.lead_status !== existing.lead_status) patch.lead_status = payload.lead_status;
+
+        if (payload.connect_date !== undefined && payload.connect_date !== existing.connect_date) {
+          patch.connect_date = payload.connect_date;
+        }
+        if (payload.followup2_date !== undefined && payload.followup2_date !== existing.followup2_date) {
+          patch.followup2_date = payload.followup2_date;
+        }
+        if (payload.followup2_comments !== undefined && payload.followup2_comments !== existing.followup2_comments) {
+          patch.followup2_comments = payload.followup2_comments;
+        }
 
         const effectiveComments = userComments || existing.comments;
         const newStoredComments = encodeLeadComments(effectiveComments, {
@@ -194,9 +205,10 @@ export async function PATCH(req: Request) {
     }
 
     const sanitized: any = { ...patch };
-    if ('connect_date' in sanitized && !sanitized.connect_date) sanitized.connect_date = null;
-    if ('followup2_date' in sanitized && !sanitized.followup2_date) sanitized.followup2_date = null;
-    if ('lead_date' in sanitized && !sanitized.lead_date) sanitized.lead_date = new Date().toISOString().split('T')[0];
+    if ('connect_date' in sanitized) sanitized.connect_date = parseFlexibleDate(sanitized.connect_date);
+    if ('date_of_connect' in sanitized && !('connect_date' in sanitized)) sanitized.connect_date = parseFlexibleDate(sanitized.date_of_connect);
+    if ('followup2_date' in sanitized) sanitized.followup2_date = parseFlexibleDate(sanitized.followup2_date);
+    if ('lead_date' in sanitized) sanitized.lead_date = parseFlexibleDate(sanitized.lead_date) || new Date().toISOString().split('T')[0];
 
     const supabase = getAdminClient();
 

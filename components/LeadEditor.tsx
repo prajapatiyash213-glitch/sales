@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { describeActivity, fmtDateTime, formatMemberName, normalizeStageValue, normalizeStatusValue, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
-import { encodeLeadComments, decodeLeadComments } from '@/lib/metaHelper';
+import { encodeLeadComments, decodeLeadComments, parseFlexibleDate } from '@/lib/metaHelper';
 
 type Form = {
   first_name: string; last_name: string; designation: string; contact_no: string;
@@ -48,9 +48,9 @@ function fromLead(l: Lead): Form {
     lead_date: l.lead_date,
     lead_source: l.lead_source,
     lead_stage: normalizeStageValue(l.lead_stage),
-    connect_date: l.connect_date ?? '',
+    connect_date: parseFlexibleDate(l.connect_date || (l as any).date_of_connect) || '',
     comments: cleanComments || '',
-    followup2_date: l.followup2_date ?? '',
+    followup2_date: parseFlexibleDate(l.followup2_date) || '',
     followup2_comments: l.followup2_comments ?? '',
     lead_status: normalizeStatusValue(l.lead_status)
   };
@@ -144,9 +144,9 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       lead_date: f.lead_date,
       lead_source: f.lead_source,
       lead_stage: f.lead_stage,
-      connect_date: f.connect_date || null,
+      connect_date: parseFlexibleDate(f.connect_date) || null,
       comments: storedComments || null,
-      followup2_date: f.followup2_date || null,
+      followup2_date: parseFlexibleDate(f.followup2_date) || null,
       followup2_comments: f.followup2_comments.trim() || null,
       lead_status: f.lead_status
     };
@@ -201,7 +201,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
     setBusy(false);
     if (error) {
       if (error.code === '23514' || error.message?.includes('check constraint')) {
-        setSaveError(`Database constraint error: Run this command in Supabase SQL Editor to allow all stages/statuses:\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check;\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_status_check;`);
+        setSaveError(`Database constraint error: Run this command in Supabase SQL Editor to allow all stages/statuses/emails:\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check;\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_status_check;\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS email_format;`);
       } else {
         setSaveError(`Could not save: ${error.message}`);
       }

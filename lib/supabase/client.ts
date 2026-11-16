@@ -9,6 +9,7 @@ const INITIAL_DEMO_LEADS = [
     lead_date: '2026-09-20',
     lead_source: 'Inbound - Referral',
     lead_stage: 'Pilot/POC',
+    connect_date: '2026-09-22',
     date_of_connect: '2026-09-22',
     comments: 'Interested in enterprise sales pipeline tooling.',
     followup2_date: '2026-10-05',
@@ -25,6 +26,7 @@ const INITIAL_DEMO_LEADS = [
     lead_date: '2026-09-25',
     lead_source: 'Outbound - Cold',
     lead_stage: 'Discovery',
+    connect_date: null,
     date_of_connect: null,
     comments: 'Inbound lead from outreach campaign.',
     followup2_date: null,
@@ -41,6 +43,7 @@ const INITIAL_DEMO_LEADS = [
     lead_date: '2026-09-15',
     lead_source: 'Inbound - Forms',
     lead_stage: 'Proposal',
+    connect_date: '2026-09-18',
     date_of_connect: '2026-09-18',
     comments: 'Demo completed. Decision expected next week.',
     followup2_date: '2026-09-29',
@@ -57,6 +60,7 @@ const INITIAL_DEMO_LEADS = [
     lead_date: '2026-09-10',
     lead_source: 'Inbound - Visitors',
     lead_stage: 'Closed Won',
+    connect_date: '2026-09-12',
     date_of_connect: '2026-09-12',
     comments: 'Closed annual subscription contract.',
     followup2_date: null,
@@ -73,6 +77,7 @@ const INITIAL_DEMO_LEADS = [
     lead_date: '2026-09-22',
     lead_source: 'Events - Imagine',
     lead_stage: 'Value Negotiation',
+    connect_date: '2026-09-23',
     date_of_connect: '2026-09-23',
     comments: 'Discussing tier 2 discount.',
     followup2_date: '2026-09-30',
@@ -184,7 +189,13 @@ function createDemoClient() {
             let leads = getStoredLeads();
             if (payload && targetId) {
               // update
-              leads = leads.map((l: any) => (l[targetCol] === targetId ? { ...l, ...payload, updated_at: new Date().toISOString() } : l));
+              leads = leads.map((l: any) => (l[targetCol] === targetId ? {
+                ...l,
+                ...payload,
+                connect_date: payload.connect_date || payload.date_of_connect || l.connect_date || l.date_of_connect || null,
+                date_of_connect: payload.connect_date || payload.date_of_connect || l.connect_date || l.date_of_connect || null,
+                updated_at: new Date().toISOString()
+              } : l));
               setStoredLeads(leads);
             } else if (!payload && targetId) {
               // delete
