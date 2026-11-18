@@ -1014,9 +1014,41 @@ select.owner-select:hover, select.owner-select:focus {
 }
 
 .tm-foot {
-  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
   font-size: 12.5px;
   color: var(--muted);
+  padding-top: 8px;
+  border-top: 1px dashed var(--line, #E2E8F0);
+}
+
+.tm-foot-text b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.tm-tap-link {
+  color: #2563EB;
+  font-weight: 700;
+  transition: color 0.15s ease;
+}
+
+.tm:hover .tm-tap-link {
+  color: #FF2A6D;
+  text-decoration: underline;
+}
+
+.tm-lead-stat.clickable {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: background 0.15s ease;
+}
+
+.tm-lead-stat.clickable:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* Activity */

@@ -2,7 +2,7 @@
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { downloadLeadsCsv, displayCompany, fmtDate, formatMemberName, initials, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
+import { downloadLeadsCsv, displayCompany, fmtDate, formatMemberName, initials, isAttendedLead, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
 import ImportModal from './ImportModal';
@@ -17,6 +17,8 @@ interface Props {
   people: Profile[];
   isAdmin: boolean;
   initialOwner?: string;
+  initialAttendedOnly?: boolean;
+  initialStatus?: string;
 }
 
 function StagePill({ stage }: { stage: string }) {
@@ -41,7 +43,7 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`status ${statusClass(norm)}`}>{norm}</span>;
 }
 
-export default function Workspace({ leads, loading, error, reload, me, people, isAdmin, initialOwner }: Props) {
+export default function Workspace({ leads, loading, error, reload, me, people, isAdmin, initialOwner, initialAttendedOnly, initialStatus }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const toast = useToast();
   const [view, setView] = useState<'table' | 'grid'>('table');
@@ -51,9 +53,10 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [designationFilter, setDesignationFilter] = useState('all');
   const [brandFilter, setBrandFilter] = useState('all');
   const [source, setSource] = useState('all');
-  const [status, setStatus] = useState('all');
+  const [status, setStatus] = useState(initialStatus ?? 'all');
   const [stage, setStage] = useState<string | null>(null);
   const [overdueOnly, setOverdueOnly] = useState(false);
+  const [attendedOnly, setAttendedOnly] = useState(initialAttendedOnly ?? false);
   const [editor, setEditor] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [importOpen, setImportOpen] = useState(false);
   const [clearModalOpen, setClearModalOpen] = useState(false);
@@ -126,7 +129,8 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
     source !== 'all' ||
     status !== 'all' ||
     stage !== null ||
-    overdueOnly;
+    overdueOnly ||
+    attendedOnly;
 
   const handleResetFilters = () => {
     setQ('');
@@ -138,6 +142,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
     setStatus('all');
     setStage(null);
     setOverdueOnly(false);
+    setAttendedOnly(false);
   };
 
   // Leads scoped by owner filter (Sales members see their own leads; Admins see all or filtered owner)
@@ -151,6 +156,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return scoped.filter(l => {
+      if (attendedOnly && !isAttendedLead(l)) return false;
       const lCompany = displayCompany(l);
       const lDesignation = l.designation?.trim() || '';
       return (
@@ -175,8 +181,9 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         ].filter(Boolean).join(' ').toLowerCase().includes(needle))
       );
     });
-  }, [scoped, stage, brandFilter, companyFilter, designationFilter, source, status, overdueOnly, q, people, me]);
+  }, [scoped, stage, brandFilter, companyFilter, designationFilter, source, status, overdueOnly, attendedOnly, q, people, me]);
 
+  const attendedCount = scoped.filter(isAttendedLead).length;
   const overdueCount = scoped.filter(isOverdue).length;
   const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation'].includes(normalizeStageValue(l.lead_stage))).length;
   const wonCount = scoped.filter(l => ['Closed Won', 'Client'].includes(normalizeStageValue(l.lead_stage))).length;
@@ -290,6 +297,16 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         <button className={`btn ${overdueOnly ? 'on-danger' : ''}`} onClick={() => setOverdueOnly(v => !v)} aria-pressed={overdueOnly}>
           Overdue follow-ups ({overdueCount})
         </button>
+        <button
+          type="button"
+          className="btn"
+          style={attendedOnly ? { background: '#2563EB', color: '#FFFFFF', borderColor: '#1D4ED8', fontWeight: 700 } : {}}
+          onClick={() => setAttendedOnly(v => !v)}
+          aria-pressed={attendedOnly}
+          title="Filter only leads attended by member or admin"
+        >
+          Attended only ({attendedCount})
+        </button>
         {hasActiveFilters && (
           <button
             type="button"
@@ -301,7 +318,14 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
             ✕ Reset
           </button>
         )}
-        <button className="btn" onClick={() => downloadLeadsCsv(filtered, people.length ? people : [me], `leads-${today()}.csv`)}>Export CSV</button>
+        <button
+          className="btn"
+          style={attendedOnly ? { background: '#0F172A', color: '#FFFFFF', fontWeight: 700 } : {}}
+          onClick={() => downloadLeadsCsv(filtered, people.length ? people : [me], `${owner === 'all' ? 'leads' : nameOf(owner).toLowerCase().replace(/\s+/g, '-')}-${attendedOnly ? 'attended-' : ''}${today()}.csv`)}
+          title={attendedOnly ? `Download only the ${filtered.length} attended leads as CSV` : 'Export all filtered leads as CSV'}
+        >
+          {attendedOnly ? `Download Attended (${filtered.length})` : 'Export CSV'}
+        </button>
         {isAdmin && <button className="btn" onClick={() => setImportOpen(true)}>📥 Import Excel / CSV</button>}
         {isAdmin && (
           <button
@@ -326,6 +350,22 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
       </div>
 
       {error && <div className="alert" role="alert">Could not load leads: {error} <button className="linkish" onClick={() => reload()}>Try again</button></div>}
+
+      {attendedOnly && (
+        <div className="alert" role="status" style={{ background: '#EFF6FF', color: '#1E40AF', borderColor: '#BFDBFE', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, marginBottom: 14 }}>
+          <span>
+            Showing only <b>{filtered.length}</b> leads attended by {owner === 'all' ? 'team' : nameOf(owner)}. Uncontacted (New) leads are hidden.
+          </span>
+          <button
+            type="button"
+            className="linkish"
+            style={{ color: '#2563EB', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer' }}
+            onClick={() => setAttendedOnly(false)}
+          >
+            Show all {scoped.length} leads
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="table-wrap"><div className="empty">Loading leads…</div></div>

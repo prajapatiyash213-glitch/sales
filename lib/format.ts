@@ -75,6 +75,16 @@ export function isOverdue(l: Lead): boolean {
   return !!l.followup2_date && l.followup2_date < today() && !['Opportunity', 'Postponed', 'Junk Lead'].includes(normStatus);
 }
 
+export function isAttendedLead(l: Lead): boolean {
+  const normStatus = normalizeStatusValue(l.lead_status);
+  if (normStatus !== 'New') return true;
+  if (l.connect_date || (l as any).date_of_connect) return true;
+  if (l.followup2_date) return true;
+  if (l.comments && l.comments.trim()) return true;
+  if (l.followup2_comments && l.followup2_comments.trim()) return true;
+  return false;
+}
+
 export function describeActivity(a: Activity, nameOf: (id: string) => string): string {
   if (a.action === 'created') return 'Added the lead';
   if (a.action === 'deleted') return 'Deleted the lead';
