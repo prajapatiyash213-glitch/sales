@@ -41,7 +41,7 @@ export async function GET() {
     const supabase = getAdminClient();
     const [profRes, leadsRes] = await Promise.all([
       supabase.from('profiles').select('id, email, full_name, role'),
-      supabase.from('leads').select('*').order('created_at', { ascending: false }),
+      supabase.from('leads').select('*').order('created_at', { ascending: false }).order('id', { ascending: true }),
     ]);
 
     if (profRes.error) throw profRes.error;
@@ -222,11 +222,11 @@ export async function PATCH(req: Request) {
       const { data: curLead } = await supabase.from('leads').select('*').eq('id', id).maybeSingle();
       if (curLead) {
         const decoded = enrichLeadRecord(curLead);
-        const nextFn = sanitized.first_name !== undefined ? sanitized.first_name : (sanitized.firstName !== undefined ? sanitized.firstName : decoded.first_name);
-        const nextLn = sanitized.last_name !== undefined ? sanitized.last_name : (sanitized.lastName !== undefined ? sanitized.lastName : decoded.last_name);
-        const nextDes = sanitized.designation !== undefined ? sanitized.designation : decoded.designation;
-        const nextPh = sanitized.contact_no !== undefined ? sanitized.contact_no : (sanitized.contactNo !== undefined ? sanitized.contactNo : decoded.contact_no);
-        const nextComm = sanitized.comments !== undefined ? sanitized.comments : decoded.comments;
+        const nextFn = (sanitized.first_name !== undefined && sanitized.first_name !== '') ? sanitized.first_name : ((sanitized.firstName !== undefined && sanitized.firstName !== '') ? sanitized.firstName : decoded.first_name);
+        const nextLn = (sanitized.last_name !== undefined && sanitized.last_name !== '') ? sanitized.last_name : ((sanitized.lastName !== undefined && sanitized.lastName !== '') ? sanitized.lastName : decoded.last_name);
+        const nextDes = (sanitized.designation !== undefined && sanitized.designation !== '') ? sanitized.designation : decoded.designation;
+        const nextPh = (sanitized.contact_no !== undefined && sanitized.contact_no !== '') ? sanitized.contact_no : ((sanitized.contactNo !== undefined && sanitized.contactNo !== '') ? sanitized.contactNo : decoded.contact_no);
+        const nextComm = (sanitized.comments !== undefined && sanitized.comments !== '') ? sanitized.comments : decoded.comments;
 
         sanitized.comments = encodeLeadComments(nextComm, {
           first_name: nextFn,

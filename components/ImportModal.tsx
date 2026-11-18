@@ -374,7 +374,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       // 2. Process inserts for new leads
       let insertedCount = 0;
       if (toInsert.length > 0) {
-        const insertData = toInsert.filter(l => l.email && EMAIL_REGEX.test(l.email)).map(l => {
+        const insertData = toInsert.filter(l => l.email && EMAIL_REGEX.test(l.email.trim())).map(l => {
           const encodedComments = encodeLeadComments(l.comments, {
             first_name: l.first_name,
             last_name: l.last_name,
@@ -386,7 +386,7 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             last_name: l.last_name || null,
             designation: l.designation || null,
             contact_no: l.contact_no || null,
-            email: l.email.toLowerCase(),
+            email: l.email.trim().toLowerCase(),
             company: l.company || null,
             brand: l.brand,
             owner_id: l.owner_id,

@@ -22,6 +22,7 @@ export function useLeads() {
         .select('*')
         .order('lead_date', { ascending: false })
         .order('created_at', { ascending: false })
+        .order('id', { ascending: true })
         .range(from, from + PAGE - 1);
       if (error) { setError(error.message); setLoading(false); return; }
       all.push(...(data as Lead[]));
@@ -38,7 +39,16 @@ export function useLeads() {
 
     const enriched = all.map(l => enrichLeadRecord(l, metaMap));
 
-    setLeads(enriched);
+    setLeads(prev => {
+      if (prev.length === 0) return enriched;
+      const newMap = new Map(enriched.map(l => [l.id, l]));
+      // Keep existing leads in their EXACT current table position, updated with new data
+      const updated = prev.map(p => newMap.get(p.id) || p);
+      // Prepend any brand-new leads created
+      const prevIds = new Set(prev.map(p => p.id));
+      const brandNew = enriched.filter(l => !prevIds.has(l.id));
+      return [...brandNew, ...updated];
+    });
     setError(null);
     setLoading(false);
   }, [supabase]);

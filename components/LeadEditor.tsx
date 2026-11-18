@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { describeActivity, fmtDateTime, formatMemberName, normalizeStageValue, normalizeStatusValue, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
-import { encodeLeadComments, decodeLeadComments, parseFlexibleDate } from '@/lib/metaHelper';
+import { encodeLeadComments, decodeLeadComments, parseFlexibleDate, sanitizeAndExtractEmail } from '@/lib/metaHelper';
 
 type Form = {
   first_name: string; last_name: string; designation: string; contact_no: string;
@@ -36,13 +36,23 @@ function blank(me: Profile, people: Profile[], isAdmin: boolean): Form {
 
 function fromLead(l: Lead): Form {
   const { comments: cleanComments, meta } = decodeLeadComments(l.comments);
+  let cached: any = {};
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        cached = (l.id ? parsed[l.id] : null) || (l.email ? parsed[l.email.toLowerCase()] : null) || {};
+      }
+    } catch {}
+  }
   return {
-    first_name: l.first_name || meta.first_name || '',
-    last_name: l.last_name || meta.last_name || '',
-    designation: l.designation || meta.designation || '',
-    contact_no: l.contact_no || meta.contact_no || '',
-    email: l.email,
-    company: l.company ?? '',
+    first_name: l.first_name || meta.first_name || cached.firstName || cached.first_name || '',
+    last_name: l.last_name || meta.last_name || cached.lastName || cached.last_name || '',
+    designation: l.designation || meta.designation || cached.designation || '',
+    contact_no: l.contact_no || meta.contact_no || cached.contactNo || cached.contact_no || '',
+    email: l.email || '',
+    company: l.company || cached.company || '',
     brand: l.brand || BRANDS[0],
     owner_id: l.owner_id,
     lead_date: l.lead_date,
@@ -104,7 +114,7 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
 
   async function save() {
     const e: typeof errors = {};
-    const email = f.email.trim().toLowerCase();
+    const email = sanitizeAndExtractEmail(f.email) || f.email.trim().toLowerCase();
     if (!email) e.email = 'Enter the lead\u2019s email.';
     else if (!EMAIL_RE.test(email)) e.email = 'This email looks incomplete. Check for a missing @ or domain.';
     if (!f.brand.trim()) e.brand = 'Select the brand.';
@@ -125,32 +135,6 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
       }
     }
 
-    const storedComments = encodeLeadComments(f.comments.trim(), {
-      first_name: f.first_name.trim(),
-      last_name: f.last_name.trim(),
-      designation: f.designation.trim(),
-      contact_no: f.contact_no.trim()
-    });
-
-    const payload: any = {
-      first_name: f.first_name.trim() || null,
-      last_name: f.last_name.trim() || null,
-      designation: f.designation.trim() || null,
-      contact_no: f.contact_no.trim() || null,
-      email,
-      company: f.company.trim() || null,
-      brand: f.brand.trim() || BRANDS[0],
-      owner_id: isAdmin ? f.owner_id : me.id,
-      lead_date: f.lead_date,
-      lead_source: f.lead_source,
-      lead_stage: f.lead_stage,
-      connect_date: parseFlexibleDate(f.connect_date) || null,
-      comments: storedComments || null,
-      followup2_date: parseFlexibleDate(f.followup2_date) || null,
-      followup2_comments: f.followup2_comments.trim() || null,
-      lead_status: f.lead_status
-    };
-
     let targetLead = lead;
     let wasExistingDuplicate = false;
     if (!targetLead) {
@@ -160,6 +144,50 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
         wasExistingDuplicate = true;
       }
     }
+
+    const targetDecoded = targetLead ? decodeLeadComments(targetLead.comments) : { comments: '', meta: {} as Record<string, string> };
+    const targetMeta = targetDecoded.meta || {};
+
+    const effectiveFirstName = f.first_name.trim() || targetLead?.first_name || targetMeta.first_name || '';
+    const effectiveLastName = f.last_name.trim() || targetLead?.last_name || targetMeta.last_name || '';
+    const effectiveDesignation = f.designation.trim() || targetLead?.designation || targetMeta.designation || '';
+    const effectiveContactNo = f.contact_no.trim() || targetLead?.contact_no || targetMeta.contact_no || '';
+    const effectiveCompany = f.company.trim() || targetLead?.company || '';
+    const effectiveBrand = f.brand.trim() || targetLead?.brand || BRANDS[0];
+    const effectiveLeadDate = f.lead_date || targetLead?.lead_date || today();
+    const effectiveLeadSource = f.lead_source || targetLead?.lead_source || SOURCES[0];
+    const effectiveLeadStage = f.lead_stage || targetLead?.lead_stage || 'Discovery';
+    const effectiveLeadStatus = f.lead_status || targetLead?.lead_status || 'New';
+    const effectiveConnectDate = parseFlexibleDate(f.connect_date) || parseFlexibleDate(targetLead?.connect_date || (targetLead as any)?.date_of_connect) || null;
+    const effectiveFollowup2Date = parseFlexibleDate(f.followup2_date) || parseFlexibleDate(targetLead?.followup2_date) || null;
+    const effectiveFollowup2Comments = f.followup2_comments.trim() || targetLead?.followup2_comments || null;
+    const effectiveCleanComments = f.comments.trim() || targetDecoded.comments || '';
+
+    const storedComments = encodeLeadComments(effectiveCleanComments, {
+      first_name: effectiveFirstName,
+      last_name: effectiveLastName,
+      designation: effectiveDesignation,
+      contact_no: effectiveContactNo
+    });
+
+    const payload: any = {
+      first_name: effectiveFirstName || null,
+      last_name: effectiveLastName || null,
+      designation: effectiveDesignation || null,
+      contact_no: effectiveContactNo || null,
+      email,
+      company: effectiveCompany || null,
+      brand: effectiveBrand,
+      owner_id: isAdmin ? f.owner_id : me.id,
+      lead_date: effectiveLeadDate,
+      lead_source: effectiveLeadSource,
+      lead_stage: effectiveLeadStage,
+      connect_date: effectiveConnectDate,
+      comments: storedComments || null,
+      followup2_date: effectiveFollowup2Date,
+      followup2_comments: effectiveFollowup2Comments,
+      lead_status: effectiveLeadStatus
+    };
 
     let { data: savedLead, error } = targetLead
       ? await supabase.from('leads').update(payload).eq('id', targetLead.id).select().maybeSingle()
@@ -186,11 +214,11 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
         const cache = raw ? JSON.parse(raw) : {};
         const metaKey = savedLead?.id || targetLead?.id || email;
         const metaData = {
-          firstName: f.first_name.trim(),
-          lastName: f.last_name.trim(),
-          designation: f.designation.trim(),
-          contactNo: f.contact_no.trim(),
-          company: f.company.trim()
+          firstName: effectiveFirstName,
+          lastName: effectiveLastName,
+          designation: effectiveDesignation,
+          contactNo: effectiveContactNo,
+          company: effectiveCompany
         };
         cache[metaKey] = metaData;
         cache[email] = metaData;
@@ -200,8 +228,8 @@ export default function LeadEditor({ open, lead, me, people, isAdmin, onClose, o
 
     setBusy(false);
     if (error) {
-      if (error.code === '23514' || error.message?.includes('check constraint')) {
-        setSaveError(`Database constraint error: Run this command in Supabase SQL Editor to allow all stages/statuses/emails:\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check;\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_status_check;\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS email_format;`);
+      if (error.code === '23514' || error.message?.includes('check constraint') || error.message?.includes('email_format')) {
+        setSaveError(`Database constraint error: The email address is invalid or your Supabase database has an active email_format constraint. Run this command in Supabase SQL Editor to allow all emails:\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS email_format;\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_stage_check;\nALTER TABLE public.leads DROP CONSTRAINT IF EXISTS leads_lead_status_check;`);
       } else {
         setSaveError(`Could not save: ${error.message}`);
       }
