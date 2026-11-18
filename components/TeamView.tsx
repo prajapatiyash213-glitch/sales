@@ -1,7 +1,17 @@
 'use client';
-import { STAGES } from '@/lib/constants';
-import { formatMemberName, initials, isOverdue } from '@/lib/format';
+import { formatMemberName, initials, normalizeStatusValue } from '@/lib/format';
 import type { Lead, Profile } from '@/lib/types';
+
+const IMAGE2_STATUSES = [
+  { key: 'Attempted to Contact', label: 'Attempted to Contact', color: '#F59E0B', bg: '#FEF3C7', text: '#B45309' },
+  { key: 'Contacted', label: 'Contacted', color: '#6366F1', bg: '#E0E7FF', text: '#4338CA' },
+  { key: 'Demo Scheduled', label: 'Demo Scheduled', color: '#A855F7', bg: '#F3E8FF', text: '#6B21A8' },
+  { key: 'Prospect (Meeting/Demo done)', label: 'Prospect (Meeting/Demo done)', color: '#EC4899', bg: '#FCE7F3', text: '#9D174D' },
+  { key: 'Junk Lead', label: 'Junk Lead', color: '#94A3B8', bg: '#F1F5F9', text: '#64748B' },
+  { key: 'Postponed', label: 'Postponed', color: '#F97316', bg: '#FED7AA', text: '#C2410C' },
+  { key: 'Nurture', label: 'Nurture', color: '#EAB308', bg: '#FEF9C3', text: '#854D0E' },
+  { key: 'Opportunity', label: 'Opportunity', color: '#22C55E', bg: '#DCFCE7', text: '#15803D' }
+];
 
 export default function TeamView({ leads, people, onOpenMember }: { leads: Lead[]; people: Profile[]; onOpenMember: (id: string) => void }) {
   const owners = people.filter(p => (p.role === 'member' && p.active) || leads.some(l => l.owner_id === p.id));
@@ -13,11 +23,7 @@ export default function TeamView({ leads, people, onOpenMember }: { leads: Lead[
         {owners.map(m => {
           const name = formatMemberName(m);
           const ls = leads.filter(l => l.owner_id === m.id);
-          const won = ls.filter(l => l.lead_stage === 'Won').length;
-          const hot = ls.filter(l => l.lead_status === 'Hot').length;
-          const od = ls.filter(isOverdue).length;
-          const closed = ls.filter(l => l.lead_stage === 'Won' || l.lead_stage === 'Lost').length;
-          const winRate = closed ? Math.round((won / closed) * 100) : null;
+          const newCount = ls.filter(l => normalizeStatusValue(l.lead_status) === 'New').length;
           return (
             <button key={m.id} className="tm" onClick={() => onOpenMember(m.id)}>
               <div className="tm-head">
@@ -25,19 +31,52 @@ export default function TeamView({ leads, people, onOpenMember }: { leads: Lead[
                 <strong>{name}</strong>
                 {!m.active && <span className="role-tag">Inactive</span>}
               </div>
-              <div className="tm-nums">
-                <div><b>{ls.length}</b>Leads</div>
-                <div><b>{won}</b>Won</div>
-                <div><b>{hot}</b>Hot</div>
-                <div><b className={od ? 'overdue' : ''}>{od}</b>Overdue</div>
+
+              <div className="tm-lead-summary">
+                <div className="tm-lead-stat">
+                  <b>{ls.length}</b>
+                  <span>Total Leads</span>
+                </div>
+                {newCount > 0 && (
+                  <div className="tm-lead-stat new-leads">
+                    <b>{newCount}</b>
+                    <span>New</span>
+                  </div>
+                )}
               </div>
-              <div className="mini">
-                {STAGES.map(s => {
-                  const n = ls.filter(l => l.lead_stage === s.key).length;
+
+              <div className="tm-status-grid">
+                {IMAGE2_STATUSES.map(s => {
+                  const count = ls.filter(l => normalizeStatusValue(l.lead_status) === s.key).length;
+                  return (
+                    <div
+                      key={s.key}
+                      className={`tm-status-card ${count > 0 ? 'active' : ''}`}
+                      style={count > 0 ? { backgroundColor: s.bg, borderColor: `${s.color}50` } : {}}
+                      title={`${s.key}: ${count}`}
+                    >
+                      <div className="tm-sc-top">
+                        <span className="tm-sc-dot" style={{ background: s.color }} />
+                        <b className="tm-sc-count" style={count > 0 ? { color: s.text } : {}}>{count}</b>
+                      </div>
+                      <span className="tm-sc-label" style={count > 0 ? { color: s.text } : {}}>{s.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mini" title="Lead status distribution">
+                {[
+                  { key: 'New', color: '#0EA5E9' },
+                  ...IMAGE2_STATUSES
+                ].map(s => {
+                  const n = ls.filter(l => normalizeStatusValue(l.lead_status) === s.key).length;
                   return n ? <span key={s.key} style={{ flex: n, background: s.color }} title={`${s.key}: ${n}`} /> : null;
                 })}
               </div>
-              <div className="tm-foot">{winRate === null ? 'No closed deals yet' : `Win rate ${winRate}% of closed deals`}</div>
+              <div className="tm-foot">
+                {ls.length === 0 ? 'No leads assigned yet' : `${ls.length} assigned leads • Tap to view`}
+              </div>
             </button>
           );
         })}
