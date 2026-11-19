@@ -33,7 +33,13 @@ export const SOURCES = [
   'Outbound - Cold',
   'Inbound - Drop-Offs',
   'Events - Imagine',
-  'Events - CFO'
+  'Events - CFO',
+  'Apollo',
+  'Apollo WV',
+  'Solution - Smart Procure',
+  'Solution - Plantflow',
+  'Solution - Sales',
+  'Inbound'
 ];
 
 export const BRANDS = [
