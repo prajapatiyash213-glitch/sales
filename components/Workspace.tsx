@@ -382,6 +382,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                 <th>First Name</th><th>Last Name</th><th>Designation</th><th>Contact No</th>
                 <th>Email</th><th>Company</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
                 <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
+                {isAdmin && <th style={{ textAlign: 'center', width: 70 }}>Action</th>}
               </tr></thead>
               <tbody>
                 {filtered.map(l => (
@@ -430,6 +431,59 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                     <td><FollowUp l={l} /></td>
                     <td className="cm"><div title={l.followup2_comments ?? ''}>{l.followup2_comments || '—'}</div></td>
                     <td><StatusPill status={l.lead_status} /></td>
+                    {isAdmin && (
+                      <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="btn ghost sm"
+                          style={{
+                            color: '#DC2626',
+                            background: '#FEF2F2',
+                            border: '1px solid #FECACA',
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 3
+                          }}
+                          title={`Delete lead: ${l.email}`}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            const leadName = [l.first_name, l.last_name].filter(Boolean).join(' ') || l.company || l.email;
+                            if (!confirm(`Are you sure you want to delete lead: "${leadName}" (${l.email})?\n\nThis will permanently remove this lead from CRM.`)) {
+                              return;
+                            }
+                            try {
+                              const { error } = await supabase.from('leads').delete().eq('id', l.id);
+                              if (error) {
+                                toast.show(`Could not delete lead: ${error.message}`);
+                              } else {
+                                if (typeof window !== 'undefined') {
+                                  try {
+                                    const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
+                                    if (raw) {
+                                      const cache = JSON.parse(raw);
+                                      delete cache[l.id];
+                                      if (l.email) delete cache[l.email.toLowerCase()];
+                                      localStorage.setItem('sales_lead_metadata_cache_v1', JSON.stringify(cache));
+                                    }
+                                  } catch {}
+                                }
+                                toast.show(`Lead "${leadName}" deleted successfully.`);
+                                reload();
+                              }
+                            } catch (err: any) {
+                              toast.show(`Error deleting lead: ${err.message}`);
+                            }
+                          }}
+                        >
+                          🗑️ Delete
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -440,7 +494,39 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
               <button key={l.id} className="card" onClick={() => openLead(l)}>
                 <div className="card-top">
                   <div><h3>{displayCompany(l)}</h3><div className="em">{l.email} ({l.brand})</div></div>
-                  <StatusPill status={l.lead_status} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <StatusPill status={l.lead_status} />
+                    {isAdmin && (
+                      <span
+                        role="button"
+                        style={{
+                          color: '#DC2626',
+                          background: '#FEF2F2',
+                          border: '1px solid #FECACA',
+                          padding: '2px 6px',
+                          borderRadius: 6,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                        title={`Delete lead: ${l.email}`}
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const leadName = [l.first_name, l.last_name].filter(Boolean).join(' ') || l.company || l.email;
+                          if (!confirm(`Delete lead "${leadName}" (${l.email})?`)) return;
+                          const { error } = await supabase.from('leads').delete().eq('id', l.id);
+                          if (error) {
+                            toast.show(`Could not delete: ${error.message}`);
+                          } else {
+                            toast.show(`Lead "${leadName}" deleted.`);
+                            reload();
+                          }
+                        }}
+                      >
+                        🗑️
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <dl>
                   <dt>Stage</dt><dd><StagePill stage={l.lead_stage} /></dd>
@@ -462,7 +548,39 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                   <h3 className="gc-company">{displayCompany(l)}</h3>
                   <span className="gc-brand-tag">{l.brand}</span>
                 </div>
-                <StatusPill status={l.lead_status} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <StatusPill status={l.lead_status} />
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      style={{
+                        color: '#DC2626',
+                        background: '#FEF2F2',
+                        border: '1px solid #FECACA',
+                        padding: '2px 6px',
+                        borderRadius: 6,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: 'pointer'
+                      }}
+                      title={`Delete lead: ${l.email}`}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const leadName = [l.first_name, l.last_name].filter(Boolean).join(' ') || l.company || l.email;
+                        if (!confirm(`Delete lead "${leadName}" (${l.email})?`)) return;
+                        const { error } = await supabase.from('leads').delete().eq('id', l.id);
+                        if (error) {
+                          toast.show(`Could not delete: ${error.message}`);
+                        } else {
+                          toast.show(`Lead "${leadName}" deleted.`);
+                          reload();
+                        }
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="gc-email">
                 {[l.first_name, l.last_name].filter(Boolean).join(' ') ? (
@@ -500,6 +618,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         me={me}
         people={people}
         reload={reload}
+        leads={leads}
       />
 
       {clearModalOpen && (

@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
-import type { Profile } from '@/lib/types';
+import type { Profile, Lead } from '@/lib/types';
 import { useToast } from './Toast';
 import { parseLeadRow, extractFromRow, encodeLeadComments, enrichLeadRecord, EMAIL_REGEX, sanitizeAndExtractEmail } from '@/lib/metaHelper';
 
@@ -12,6 +12,7 @@ interface Props {
   me: Profile;
   people: Profile[];
   reload: () => Promise<void>;
+  leads?: Lead[];
 }
 
 interface ParsedLead {
@@ -80,7 +81,7 @@ function normalizeStage(raw: string): string {
   return 'Discovery';
 }
 
-export default function ImportModal({ open, onClose, me, people, reload }: Props) {
+export default function ImportModal({ open, onClose, me, people, reload, leads = [] }: Props) {
   const toast = useToast();
   const isAdmin = me?.role === 'admin';
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +90,8 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [lastUploaded, setLastUploaded] = useState<UploadedFileInfo | null>(null);
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string>('auto');
+  const [selectedBrand, setSelectedBrand] = useState<string>('auto');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -100,6 +103,10 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       } catch (err) {
         console.error('Failed to read last uploaded file info:', err);
       }
+    }
+    if (open) {
+      setSelectedOwnerId('auto');
+      setSelectedBrand('auto');
     }
   }, [open]);
 
@@ -264,112 +271,33 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       }
 
       const toInsert: ParsedLead[] = [];
-      const toUpdate: { id: string; email: string; patch: any; patchMeta: any }[] = [];
       let skippedCount = 0;
 
       for (const l of uniqueParsed) {
         const emailKey = l.email.toLowerCase();
-        const existing = existingMap.get(emailKey);
+        const existing = existingMap.get(emailKey) || (leads && leads.find(el => el.email?.trim().toLowerCase() === emailKey));
 
         if (existing) {
-          // Lead already exists! Check if phone/contact_no or any other field changed
-          const existingMeta = metaCache[existing.id] || metaCache[emailKey] || {};
-          const curFirstName = existing.first_name || existingMeta.firstName || '';
-          const curLastName = existing.last_name || existingMeta.lastName || '';
-          const curDesignation = existing.designation || existingMeta.designation || '';
-          const curContactNo = existing.contact_no || existingMeta.contactNo || '';
-          const curCompany = existing.company || existingMeta.company || '';
-
-          const patch: any = {};
-          const patchMeta: any = {};
-
-          if (l.first_name && l.first_name !== curFirstName) {
-            patch.first_name = l.first_name;
-            patchMeta.firstName = l.first_name;
-          }
-          if (l.last_name && l.last_name !== curLastName) {
-            patch.last_name = l.last_name;
-            patchMeta.lastName = l.last_name;
-          }
-          if (l.designation && l.designation !== curDesignation) {
-            patch.designation = l.designation;
-            patchMeta.designation = l.designation;
-          }
-          if (l.contact_no && l.contact_no !== curContactNo) {
-            patch.contact_no = l.contact_no;
-            patchMeta.contactNo = l.contact_no;
-          }
-          if (l.company && l.company !== curCompany) {
-            patch.company = l.company;
-            patchMeta.company = l.company;
-          }
-          if (l.brand && l.brand !== existing.brand) {
-            patch.brand = l.brand;
-          }
-          if (l.owner_id && l.owner_id !== existing.owner_id) {
-            patch.owner_id = l.owner_id;
-          }
-          if (l.lead_source && l.lead_source !== existing.lead_source) {
-            patch.lead_source = l.lead_source;
-          }
-          if (l.lead_stage && l.lead_stage !== existing.lead_stage) {
-            patch.lead_stage = l.lead_stage;
-          }
-          if (l.lead_status && l.lead_status !== existing.lead_status) {
-            patch.lead_status = l.lead_status;
-          }
-          if (l.connect_date && l.connect_date !== existing.connect_date) {
-            patch.connect_date = l.connect_date;
-          }
-          if (l.followup2_date && l.followup2_date !== existing.followup2_date) {
-            patch.followup2_date = l.followup2_date;
-          }
-          if (l.followup2_comments && l.followup2_comments !== existing.followup2_comments) {
-            patch.followup2_comments = l.followup2_comments;
-          }
-          if (l.comments && l.comments !== existing.comments) {
-            patch.comments = l.comments;
-          }
-
-          if (Object.keys(patch).length > 0) {
-            const nextComments = patch.comments || existing.comments || '';
-            patch.comments = encodeLeadComments(nextComments, {
-              first_name: patch.first_name || curFirstName,
-              last_name: patch.last_name || curLastName,
-              designation: patch.designation || curDesignation,
-              contact_no: patch.contact_no || curContactNo
-            });
-            toUpdate.push({ id: existing.id, email: emailKey, patch, patchMeta });
-          } else {
-            // Unchanged duplicate — do not insert duplicate
-            skippedCount++;
-          }
-        } else {
-          // Brand new lead
-          toInsert.push(l);
-        }
-      }
-
-      // 1. Process updates for existing leads with changed data
-      let updatedCount = 0;
-      for (const item of toUpdate) {
-        let { error: updateErr } = await supabase.from('leads').update(item.patch).eq('id', item.id);
-        if (updateErr && (updateErr.code === 'PGRST204' || updateErr.message?.includes('column') || updateErr.message?.includes('company'))) {
-          const fallbackPatch = { ...item.patch };
-          delete fallbackPatch.first_name;
-          delete fallbackPatch.last_name;
-          delete fallbackPatch.designation;
-          delete fallbackPatch.contact_no;
-          if (updateErr.message?.includes('company')) delete fallbackPatch.company;
-          if (Object.keys(fallbackPatch).length > 0) {
-            await supabase.from('leads').update(fallbackPatch).eq('id', item.id);
-          }
+          // STRICT RULE: Existing data must NOT change under any circumstances ("existing data as it is not change in exists data")
+          skippedCount++;
+          continue;
         }
 
-        metaCache[item.id] = { ...(metaCache[item.id] || {}), ...item.patchMeta };
-        metaCache[item.email] = metaCache[item.id];
-        updatedCount++;
+        // Brand new lead: Apply chosen owner and brand (if specified), or keep detected from file
+        const finalOwnerId = selectedOwnerId !== 'auto' ? selectedOwnerId : (l.owner_id || me.id);
+        const finalOwner = people.find(p => p.id === finalOwnerId) || me;
+        const finalBrand = selectedBrand !== 'auto' ? selectedBrand : (l.brand || BRANDS[0]);
+
+        toInsert.push({
+          ...l,
+          owner_id: finalOwnerId,
+          owner_name: finalOwner.full_name || finalOwner.email,
+          brand: finalBrand
+        });
       }
+
+      // Existing records are strictly preserved as-is without any updates
+      const updatedCount = 0;
 
       // 2. Process inserts for new leads
       let insertedCount = 0;
@@ -461,16 +389,14 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
         }
       }
 
-      // Friendly notification message detailing deduplication results
+      // Notification message detailing deduplication results
       let successMsg = '';
-      if (insertedCount > 0 && updatedCount > 0) {
-        successMsg = `Import completed: ${insertedCount} new leads added, ${updatedCount} existing leads updated with changed details, ${skippedCount} duplicates skipped.`;
+      if (insertedCount > 0 && skippedCount > 0) {
+        successMsg = `Import completed: ${insertedCount} new leads added. ${skippedCount} existing leads kept 100% untouched.`;
       } else if (insertedCount > 0) {
-        successMsg = `Import completed: ${insertedCount} new leads added${skippedCount > 0 ? ` (${skippedCount} duplicates skipped)` : ''}.`;
-      } else if (updatedCount > 0) {
-        successMsg = `Import completed: ${updatedCount} existing leads updated with new details${skippedCount > 0 ? ` (${skippedCount} unchanged duplicates skipped)` : ''}.`;
+        successMsg = `Import completed: ${insertedCount} new leads added.`;
       } else {
-        successMsg = `All ${skippedCount} leads already exist with identical details. No duplicate leads were added.`;
+        successMsg = `All ${skippedCount} leads already exist in CRM. Existing data kept 100% untouched.`;
       }
 
       toast.show(successMsg);
@@ -482,6 +408,9 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
       setBusy(false);
     }
   }
+
+  const existingEmailSet = new Set((leads || []).map(l => (l.email || '').trim().toLowerCase()));
+  const newLeadsCount = parsed.filter(l => !existingEmailSet.has(l.email.trim().toLowerCase())).length;
 
   const isStaged = !!file;
   const currentDisplayFile = file
@@ -659,56 +588,197 @@ export default function ImportModal({ open, onClose, me, people, reload }: Props
             )}
           </div>
 
-          {parsed.length > 0 && (
-            <div>
-              <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 10 }}>
-                Preview ({parsed.length} leads found)
-              </h3>
-              <div className="table-wrap" style={{ maxHeight: 280, overflowY: 'auto' }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Designation</th>
-                      <th>Contact No</th>
-                      <th>Email</th>
-                      <th>Company</th>
-                      <th>Brand</th>
-                      <th>Allocated To</th>
-                      <th>Stage</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {parsed.map((item, idx) => {
-                      const fullName = [item.first_name, item.last_name].filter(Boolean).join(' ');
-                      return (
-                        <tr key={idx}>
-                          <td>{fullName || '—'}</td>
-                          <td>{item.designation || '—'}</td>
-                          <td>{item.contact_no || '—'}</td>
-                          <td>{item.email}</td>
-                          <td>{item.company || '—'}</td>
-                          <td><strong>{item.brand}</strong></td>
-                          <td>
-                            <span className="role-tag admin" style={{ background: '#E0F2FE', color: '#0369A1' }}>
-                              👤 {item.owner_name}
-                            </span>
-                          </td>
-                          <td>{item.lead_stage}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {parsed.length > 0 && (() => {
+            const existingEmailSet = new Set((leads || []).map(l => (l.email || '').trim().toLowerCase()));
+            const detectedCompanies = Array.from(new Set(parsed.map(p => p.company?.trim()).filter(Boolean) as string[]));
+            const existingInPreviewCount = parsed.filter(l => existingEmailSet.has(l.email.trim().toLowerCase())).length;
+            const newInPreviewCount = parsed.length - existingInPreviewCount;
+            const selectedOwner = people.find(p => p.id === selectedOwnerId);
+
+            return (
+              <div>
+                {/* Company Upload Options & Ownership/Brand Selection */}
+                <div
+                  style={{
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 12,
+                    padding: '16px',
+                    marginBottom: 16
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>🏢</span>
+                      <strong style={{ fontSize: 14, color: '#0F172A' }}>
+                        {detectedCompanies.length > 0
+                          ? `Company: ${detectedCompanies.slice(0, 3).join(', ')}${detectedCompanies.length > 3 ? ` (+${detectedCompanies.length - 3} more)` : ''}`
+                          : 'Company Data Import Options'}
+                      </strong>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        background: '#ECFDF5',
+                        color: '#065F46',
+                        padding: '3px 8px',
+                        borderRadius: 6,
+                        fontWeight: 700,
+                        border: '1px solid #A7F3D0'
+                      }}
+                    >
+                      🛡️ Existing CRM Data: 100% Protected (No Changes)
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
+                    {/* Ownership Selection */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        👤 Assign Ownership (Sales Member / Admin):
+                      </label>
+                      <select
+                        value={selectedOwnerId}
+                        onChange={e => setSelectedOwnerId(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: 13,
+                          background: '#FFFFFF',
+                          color: '#0F172A',
+                          fontWeight: 500
+                        }}
+                      >
+                        <option value="auto">⚡ Auto (Keep from file or assign to me)</option>
+                        {people.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.full_name || p.email} ({p.role === 'admin' ? 'Admin' : 'Sales'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Brand Selection */}
+                    <div>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                        🏷️ Select Brand:
+                      </label>
+                      <select
+                        value={selectedBrand}
+                        onChange={e => setSelectedBrand(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: 8,
+                          border: '1px solid #CBD5E1',
+                          fontSize: 13,
+                          background: '#FFFFFF',
+                          color: '#0F172A',
+                          fontWeight: 500
+                        }}
+                      >
+                        <option value="auto">⚡ Auto (Keep from file / Auto-detect)</option>
+                        {BRANDS.map(b => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 10, fontSize: 11, color: '#64748B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>ℹ️</span>
+                    <span>
+                      Existing CRM records will remain completely untouched. The selected Owner &amp; Brand apply strictly to <strong>new incoming leads</strong>.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Table Header and Summary */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>
+                    Preview ({parsed.length} leads in file)
+                  </h3>
+                  <div style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+                    <span style={{ background: '#DCFCE7', color: '#166534', padding: '3px 10px', borderRadius: 999, fontWeight: 700 }}>
+                      ✨ {newInPreviewCount} New
+                    </span>
+                    {existingInPreviewCount > 0 && (
+                      <span style={{ background: '#F1F5F9', color: '#475569', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                        🔒 {existingInPreviewCount} Existing (Kept as-is)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Preview Table */}
+                <div className="table-wrap" style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Status</th>
+                        <th>Name</th>
+                        <th>Designation</th>
+                        <th>Contact No</th>
+                        <th>Email</th>
+                        <th>Company</th>
+                        <th>Brand</th>
+                        <th>Allocated To</th>
+                        <th>Stage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {parsed.map((item, idx) => {
+                        const fullName = [item.first_name, item.last_name].filter(Boolean).join(' ');
+                        const isExisting = existingEmailSet.has(item.email.trim().toLowerCase());
+                        const displayBrand = isExisting
+                          ? item.brand
+                          : (selectedBrand !== 'auto' ? selectedBrand : item.brand);
+                        const displayOwnerName = isExisting
+                          ? item.owner_name
+                          : (selectedOwnerId !== 'auto' && selectedOwner ? (selectedOwner.full_name || selectedOwner.email) : item.owner_name);
+
+                        return (
+                          <tr key={idx} style={{ opacity: isExisting ? 0.75 : 1 }}>
+                            <td>
+                              {isExisting ? (
+                                <span style={{ background: '#F1F5F9', color: '#475569', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                  🔒 Existing
+                                </span>
+                              ) : (
+                                <span style={{ background: '#DCFCE7', color: '#166534', padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700 }}>
+                                  ✨ New
+                                </span>
+                              )}
+                            </td>
+                            <td>{fullName || '—'}</td>
+                            <td>{item.designation || '—'}</td>
+                            <td>{item.contact_no || '—'}</td>
+                            <td>{item.email}</td>
+                            <td>{item.company || '—'}</td>
+                            <td><strong>{displayBrand}</strong></td>
+                            <td>
+                              <span className="role-tag admin" style={{ background: '#E0F2FE', color: '#0369A1' }}>
+                                👤 {displayOwnerName}
+                              </span>
+                            </td>
+                            <td>{item.lead_stage}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         <div className="dr-foot">
           <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn primary" onClick={handleImport} disabled={!parsed.length || busy}>
-            {busy ? 'Importing…' : `Import & Allocate ${parsed.length} Leads`}
+            {busy ? 'Importing…' : (newLeadsCount > 0 ? `Import ${newLeadsCount} New Leads` : (parsed.length > 0 ? 'All Leads Already Exist (Kept as-is)' : 'Import Leads'))}
           </button>
         </div>
       </div>
