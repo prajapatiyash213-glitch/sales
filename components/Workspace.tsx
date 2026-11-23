@@ -3,6 +3,7 @@ import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { downloadLeadsCsv, displayCompany, fmtDate, formatMemberName, initials, isAttendedLead, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
+import { isValidContactNo } from '@/lib/metaHelper';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
 import ImportModal from './ImportModal';
@@ -521,7 +522,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
                     <td>{l.first_name || '—'}</td>
                     <td>{l.last_name || '—'}</td>
                     <td>{l.designation ? <span className="role-tag" style={{ background: '#F1F5F9', color: '#334155', fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>{l.designation}</span> : '—'}</td>
-                    <td>{l.contact_no ? <a href={`tel:${l.contact_no}`} onClick={e => e.stopPropagation()} style={{ color: '#2563EB', textDecoration: 'none', fontWeight: 600 }}>{l.contact_no}</a> : '—'}</td>
+                    <td>{l.contact_no && isValidContactNo(l.contact_no) ? <a href={`tel:${l.contact_no}`} onClick={e => e.stopPropagation()} style={{ color: '#2563EB', textDecoration: 'none', fontWeight: 600 }}>{l.contact_no}</a> : '—'}</td>
                     <td>{l.email}</td>
                     <td><strong>{displayCompany(l)}</strong></td>
                     <td><strong>{l.brand}</strong></td>
@@ -761,7 +762,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
               </div>
               <div className="gc-body">
                 {l.designation && <div className="gc-row"><span className="gc-label">Role:</span> <span>{l.designation}</span></div>}
-                {l.contact_no && <div className="gc-row"><span className="gc-label">Contact:</span> <a href={`tel:${l.contact_no}`} onClick={e => e.stopPropagation()} style={{ color: '#2563EB', textDecoration: 'none' }}>{l.contact_no}</a></div>}
+                {l.contact_no && isValidContactNo(l.contact_no) && <div className="gc-row"><span className="gc-label">Contact:</span> <a href={`tel:${l.contact_no}`} onClick={e => e.stopPropagation()} style={{ color: '#2563EB', textDecoration: 'none' }}>{l.contact_no}</a></div>}
                 <div className="gc-row"><span className="gc-label">Stage:</span> <StagePill stage={l.lead_stage} /></div>
                 <div className="gc-row"><span className="gc-label">Ownership:</span> <span className="owner"><span className="avatar">{initials(nameOf(l.owner_id))}</span>{nameOf(l.owner_id)}</span></div>
                 <div className="gc-row"><span className="gc-label">Lead Date:</span> <span>{fmtDate(l.lead_date)}</span></div>

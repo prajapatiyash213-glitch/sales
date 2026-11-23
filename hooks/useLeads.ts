@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { Lead } from '@/lib/types';
-import { enrichLeadRecord } from '@/lib/metaHelper';
+import { enrichLeadRecord, isValidContactNo } from '@/lib/metaHelper';
 
 const PAGE = 1000;
 
@@ -33,7 +33,23 @@ export function useLeads() {
     if (typeof window !== 'undefined') {
       try {
         const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
-        if (raw) metaMap = JSON.parse(raw);
+        if (raw) {
+          metaMap = JSON.parse(raw);
+          let dirty = false;
+          for (const key of Object.keys(metaMap)) {
+            if (metaMap[key]?.contactNo && !isValidContactNo(metaMap[key].contactNo)) {
+              delete metaMap[key].contactNo;
+              dirty = true;
+            }
+            if (metaMap[key]?.contact_no && !isValidContactNo(metaMap[key].contact_no)) {
+              delete metaMap[key].contact_no;
+              dirty = true;
+            }
+          }
+          if (dirty) {
+            localStorage.setItem('sales_lead_metadata_cache_v1', JSON.stringify(metaMap));
+          }
+        }
       } catch {}
     }
 

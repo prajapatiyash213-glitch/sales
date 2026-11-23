@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
 import { describeActivity, fmtDateTime, formatMemberName, normalizeStageValue, normalizeStatusValue, today } from '@/lib/format';
 import type { Activity, Lead, Profile } from '@/lib/types';
-import { encodeLeadComments, decodeLeadComments, parseFlexibleDate, sanitizeAndExtractEmail } from '@/lib/metaHelper';
+import { encodeLeadComments, decodeLeadComments, parseFlexibleDate, sanitizeAndExtractEmail, isValidContactNo } from '@/lib/metaHelper';
 
 type Form = {
   first_name: string; last_name: string; designation: string; contact_no: string;
@@ -50,7 +50,7 @@ function fromLead(l: Lead): Form {
     first_name: l.first_name || meta.first_name || cached.firstName || cached.first_name || '',
     last_name: l.last_name || meta.last_name || cached.lastName || cached.last_name || '',
     designation: l.designation || meta.designation || cached.designation || '',
-    contact_no: l.contact_no || meta.contact_no || cached.contactNo || cached.contact_no || '',
+    contact_no: isValidContactNo(l.contact_no || meta.contact_no || cached.contactNo || cached.contact_no || '') ? (l.contact_no || meta.contact_no || cached.contactNo || cached.contact_no || '') : '',
     email: l.email || '',
     company: l.company || cached.company || '',
     brand: l.brand || BRANDS[0],

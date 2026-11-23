@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile, Lead } from '@/lib/types';
 import { useToast } from './Toast';
-import { parseLeadRow, extractFromRow, encodeLeadComments, enrichLeadRecord, EMAIL_REGEX, sanitizeAndExtractEmail } from '@/lib/metaHelper';
+import { parseLeadRow, extractFromRow, encodeLeadComments, enrichLeadRecord, EMAIL_REGEX, sanitizeAndExtractEmail, isValidContactNo } from '@/lib/metaHelper';
 
 interface Props {
   open: boolean;
@@ -159,11 +159,8 @@ export default function ImportModal({ open, onClose, me, people, reload, leads =
           let company = parsed.company;
 
           let brand = extractFromRow(row, ['brand', 'brand name']);
-          if (!brand) {
-            brand = company || BRANDS[0];
-          }
-          if (!BRANDS.includes(brand)) {
-            const matchedBrand = BRANDS.find(b => b.toLowerCase() === brand.toLowerCase());
+          if (!brand || !BRANDS.includes(brand)) {
+            const matchedBrand = BRANDS.find(b => b.toLowerCase() === (brand || '').toLowerCase());
             brand = matchedBrand || BRANDS[0];
           }
 
@@ -754,7 +751,7 @@ export default function ImportModal({ open, onClose, me, people, reload, leads =
                             </td>
                             <td>{fullName || '—'}</td>
                             <td>{item.designation || '—'}</td>
-                            <td>{item.contact_no || '—'}</td>
+                            <td>{item.contact_no && isValidContactNo(item.contact_no) ? item.contact_no : '—'}</td>
                             <td>{item.email}</td>
                             <td>{item.company || '—'}</td>
                             <td><strong>{displayBrand}</strong></td>

@@ -16,26 +16,78 @@ export function normalizeKey(k: string): string {
   return k.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-export function extractFromRow(row: Record<string, any>, aliasList: string[]): string {
+export function isValidContactNo(val: string): boolean {
+  if (!val) return false;
+  const s = String(val).trim();
+  // Under NO circumstances should an email or string containing @ be a contact number
+  if (s.includes('@')) return false;
+  // Hex IDs (like Apollo/MongoDB 16+ hex chars) are IDs, not phone numbers
+  if (/^[a-f0-9]{16,}$/i.test(s.replace(/\s+/g, ''))) return false;
+  // Must contain at least one digit
+  if (!/\d/.test(s)) return false;
+  // Must not have more letters than digits
+  const letters = (s.match(/[a-zA-Z]/g) || []).length;
+  const digits = (s.match(/\d/g) || []).length;
+  if (letters > digits) return false;
+  return true;
+}
+
+export function isValidName(val: string): boolean {
+  if (!val) return false;
+  const s = String(val).trim();
+  if (s.includes('@')) return false;
+  if (/^(http|https|www\.)/i.test(s)) return false;
+  return true;
+}
+
+export function isValidText(val: string): boolean {
+  if (!val) return false;
+  const s = String(val).trim();
+  if (s.includes('@')) return false;
+  return true;
+}
+
+export interface ExtractOptions {
+  excludeKeySubstrings?: string[];
+  validator?: (val: string) => boolean;
+}
+
+export function extractFromRow(
+  row: Record<string, any>,
+  aliasList: string[],
+  options?: ExtractOptions
+): string {
   const normAliases = aliasList.map(normalizeKey);
+  const excludeSubs = (options?.excludeKeySubstrings || []).map(normalizeKey);
+  const validator = options?.validator || ((v: string) => !!v);
 
   // 1st pass: exact match on normalized key
+  // If an exact matching column exists in the row:
+  // If it has a valid value, return it.
+  // If it is blank/empty, return '' immediately!
+  // A column that was explicitly present in Excel but left blank MUST remain blank (no fallback guessing).
   for (const alias of normAliases) {
     for (const key of Object.keys(row)) {
-      if (normalizeKey(key) === alias) {
+      const normK = normalizeKey(key);
+      if (normK === alias) {
         const val = cleanValue(row[key]);
-        if (val) return val;
+        if (val && validator(val)) return val;
+        return '';
       }
     }
   }
 
   // 2nd pass: key contains alias (e.g. key 'corporate_phone_number' contains 'corporatephone')
+  // Only for specific aliases >= 5 chars to avoid short generic matches like 'name' or 'date',
+  // and excluding forbidden substrings (e.g. 'email' when searching for phone).
   for (const alias of normAliases) {
+    if (alias.length < 5) continue;
     for (const key of Object.keys(row)) {
       const normK = normalizeKey(key);
+      if (excludeSubs.some(sub => normK.includes(sub))) continue;
       if (normK.includes(alias)) {
         const val = cleanValue(row[key]);
-        if (val) return val;
+        if (val && validator(val)) return val;
       }
     }
   }
@@ -141,22 +193,28 @@ export const DESIGNATION_ALIASES = ['designation', 'title', 'role', 'job title',
 export const CONTACT_NO_ALIASES = [
   'contact no',
   'contact number',
+  'contactno',
+  'contact#',
   'corporate phone',
   'corporate phone number',
   'corporate phone no',
   'corp phone',
   'mobile phone',
   'mobile no',
+  'mobileno',
   'mobile number',
+  'mobile',
   'phone number',
   'phone no',
+  'phoneno',
   'phone',
-  'contact',
   'cell phone',
   'cell',
   'work direct phone',
   'work phone',
-  'company phone'
+  'company phone',
+  'direct phone',
+  'telephone'
 ];
 export const EMAIL_ALIASES = ['email', 'email id', 'work email', 'email address', 'lead email'];
 export const COMPANY_ALIASES = ['company', 'company name', 'company name for emails', 'client', 'account', 'organization'];
@@ -206,32 +264,50 @@ export const FOLLOWUP2_COMMENTS_ALIASES = [
 ];
 
 export function parseLeadRow(row: Record<string, any>) {
-  let firstName = extractFromRow(row, FIRST_NAME_ALIASES);
-  let lastName = extractFromRow(row, LAST_NAME_ALIASES);
+  let firstName = extractFromRow(row, FIRST_NAME_ALIASES, {
+    excludeKeySubstrings: ['company', 'brand', 'email', 'mail', 'file', 'sheet', 'user', 'owner', 'account'],
+    validator: isValidName
+  });
+  let lastName = extractFromRow(row, LAST_NAME_ALIASES, {
+    excludeKeySubstrings: ['company', 'brand', 'email', 'mail', 'file', 'sheet', 'user', 'owner', 'account'],
+    validator: isValidName
+  });
   if (!firstName && !lastName) {
-    const fullName = extractFromRow(row, FULL_NAME_ALIASES);
+    const fullName = extractFromRow(row, FULL_NAME_ALIASES, {
+      excludeKeySubstrings: ['company', 'brand', 'email', 'mail', 'file', 'sheet', 'user', 'owner', 'account'],
+      validator: isValidName
+    });
     if (fullName) {
       const parts = fullName.split(/\s+/);
       firstName = parts[0] || '';
       lastName = parts.slice(1).join(' ') || '';
     }
   }
-  const designation = extractFromRow(row, DESIGNATION_ALIASES);
-  const contactNo = extractFromRow(row, CONTACT_NO_ALIASES);
+  const designation = extractFromRow(row, DESIGNATION_ALIASES, {
+    excludeKeySubstrings: ['email', 'mail', 'company', 'brand', 'file', 'sheet'],
+    validator: isValidText
+  });
+  const contactNo = extractFromRow(row, CONTACT_NO_ALIASES, {
+    excludeKeySubstrings: ['email', 'mail', 'id', 'name', 'person', 'title', 'company', 'brand', 'source', 'stage', 'status', 'url', 'web', 'link'],
+    validator: isValidContactNo
+  });
   const email = extractEmailFromRow(row);
-  const company = extractFromRow(row, COMPANY_ALIASES);
+  const company = extractFromRow(row, COMPANY_ALIASES, {
+    excludeKeySubstrings: ['email', 'mail', 'user', 'owner', 'contact', 'person', 'phone'],
+    validator: isValidText
+  });
   const connectDate = parseFlexibleDate(extractFromRow(row, CONNECT_DATE_ALIASES));
   const comments = extractFromRow(row, COMMENTS_ALIASES);
   const followup2Date = parseFlexibleDate(extractFromRow(row, FOLLOWUP2_DATE_ALIASES));
   const followup2Comments = extractFromRow(row, FOLLOWUP2_COMMENTS_ALIASES);
 
   return {
-    firstName,
-    lastName,
-    designation,
-    contactNo,
+    firstName: isValidName(firstName) ? firstName : '',
+    lastName: isValidName(lastName) ? lastName : '',
+    designation: isValidText(designation) ? designation : '',
+    contactNo: isValidContactNo(contactNo) ? contactNo : '',
     email,
-    company,
+    company: isValidText(company) ? company : '',
     connectDate,
     comments,
     followup2Date,
@@ -245,10 +321,10 @@ export function encodeLeadComments(
 ): string {
   const base = (userComments || '').replace(/<!--lead-meta:[\s\S]*?-->/g, '').trim();
   const payload = {
-    contact_no: meta.contact_no || '',
-    first_name: meta.first_name || '',
-    last_name: meta.last_name || '',
-    designation: meta.designation || ''
+    contact_no: isValidContactNo(meta.contact_no || '') ? (meta.contact_no || '') : '',
+    first_name: isValidName(meta.first_name || '') ? (meta.first_name || '') : '',
+    last_name: isValidName(meta.last_name || '') ? (meta.last_name || '') : '',
+    designation: isValidText(meta.designation || '') ? (meta.designation || '') : ''
   };
   const metaTag = `<!--lead-meta:${JSON.stringify(payload)}-->`;
   return base ? `${base}\n${metaTag}` : metaTag;
@@ -272,11 +348,16 @@ export function enrichLeadRecord(lead: any, metaCache: Record<string, any> = {})
   const emailMeta = lead.email ? metaCache[lead.email.toLowerCase()] : null;
   const { comments: cleanComments, meta: commentMeta } = decodeLeadComments(lead.comments);
 
-  const firstName = lead.first_name || commentMeta.first_name || idMeta?.firstName || idMeta?.first_name || emailMeta?.firstName || emailMeta?.first_name || '';
-  const lastName = lead.last_name || commentMeta.last_name || idMeta?.lastName || idMeta?.last_name || emailMeta?.lastName || emailMeta?.last_name || '';
-  const designation = lead.designation || commentMeta.designation || idMeta?.designation || emailMeta?.designation || '';
-  const contactNo = lead.contact_no || commentMeta.contact_no || idMeta?.contactNo || idMeta?.contact_no || emailMeta?.contactNo || emailMeta?.contact_no || '';
-  const company = lead.company || idMeta?.company || emailMeta?.company || '';
+  const rawFirstName = lead.first_name || commentMeta.first_name || idMeta?.firstName || idMeta?.first_name || emailMeta?.firstName || emailMeta?.first_name || '';
+  const firstName = isValidName(rawFirstName) ? rawFirstName : '';
+  const rawLastName = lead.last_name || commentMeta.last_name || idMeta?.lastName || idMeta?.last_name || emailMeta?.lastName || emailMeta?.last_name || '';
+  const lastName = isValidName(rawLastName) ? rawLastName : '';
+  const rawDesignation = lead.designation || commentMeta.designation || idMeta?.designation || emailMeta?.designation || '';
+  const designation = isValidText(rawDesignation) ? rawDesignation : '';
+  const rawContactNo = lead.contact_no || commentMeta.contact_no || idMeta?.contactNo || idMeta?.contact_no || emailMeta?.contactNo || emailMeta?.contact_no || '';
+  const contactNo = isValidContactNo(rawContactNo) ? rawContactNo : '';
+  const rawCompany = lead.company || idMeta?.company || emailMeta?.company || '';
+  const company = isValidText(rawCompany) ? rawCompany : '';
   const connectDate = parseFlexibleDate(lead.connect_date || lead.date_of_connect) || lead.connect_date || lead.date_of_connect || null;
   const followup2Date = parseFlexibleDate(lead.followup2_date) || lead.followup2_date || null;
 

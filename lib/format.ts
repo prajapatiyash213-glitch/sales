@@ -15,8 +15,7 @@ export function extractCompanyFromEmail(email: string | null | undefined): strin
 
 export function displayCompany(l: { company?: string | null; email?: string }): string {
   if (l.company && l.company.trim()) return l.company.trim();
-  const derived = extractCompanyFromEmail(l.email);
-  return derived || '—';
+  return '—';
 }
 
 export function normalizeStatusValue(status: string | null | undefined): string {

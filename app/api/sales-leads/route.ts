@@ -13,7 +13,8 @@ import {
   COMPANY_ALIASES,
   extractFromRow,
   EMAIL_REGEX,
-  sanitizeAndExtractEmail
+  sanitizeAndExtractEmail,
+  isValidContactNo
 } from '@/lib/metaHelper';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://takqbngsfdwburtujtsc.supabase.co';
@@ -75,11 +76,12 @@ export async function POST(req: Request) {
     const firstName = extractFromRow(body, FIRST_NAME_ALIASES) || cleanValue(body.first_name || body.firstName || '');
     const lastName = extractFromRow(body, LAST_NAME_ALIASES) || cleanValue(body.last_name || body.lastName || '');
     const designation = extractFromRow(body, DESIGNATION_ALIASES) || cleanValue(body.designation || body.title || '');
-    const contactNo = extractFromRow(body, CONTACT_NO_ALIASES) || cleanValue(
+    const rawContactNo = extractFromRow(body, CONTACT_NO_ALIASES) || cleanValue(
       body.contact_no || body.contactNo || body['Contact No'] || body['Contact No.'] ||
       body.corporate_phone || body.corporatePhone || body['Corporate Phone'] ||
       body.phone || body.mobile || body.work_phone || ''
     );
+    const contactNo = isValidContactNo(rawContactNo) ? rawContactNo : '';
     const company = extractFromRow(body, COMPANY_ALIASES) || cleanValue(body.company || body.company_name || '');
     const userComments = cleanValue(body.comments);
 
