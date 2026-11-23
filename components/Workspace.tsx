@@ -61,6 +61,42 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [importOpen, setImportOpen] = useState(false);
   const [clearModalOpen, setClearModalOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+
+  const handleBulkDelete = async () => {
+    if (!isAdmin || selectedLeadIds.size === 0) return;
+    const count = selectedLeadIds.size;
+    if (!confirm(`Are you sure you want to permanently delete the selected ${count} ${count === 1 ? 'lead' : 'leads'}?\n\nThis action cannot be undone.`)) {
+      return;
+    }
+    const idsArray = Array.from(selectedLeadIds);
+    try {
+      for (let i = 0; i < idsArray.length; i += 100) {
+        const chunk = idsArray.slice(i, i + 100);
+        const { error } = await supabase.from('leads').delete().in('id', chunk);
+        if (error) throw error;
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          const raw = localStorage.getItem('sales_lead_metadata_cache_v1');
+          if (raw) {
+            const cache = JSON.parse(raw);
+            idsArray.forEach(id => {
+              delete cache[id];
+            });
+            localStorage.setItem('sales_lead_metadata_cache_v1', JSON.stringify(cache));
+          }
+        } catch {}
+      }
+
+      toast.show(`Successfully deleted ${count} ${count === 1 ? 'lead' : 'leads'}.`);
+      setSelectedLeadIds(new Set());
+      await reload();
+    } catch (err: any) {
+      toast.show(`Failed to delete leads: ${err?.message || 'Unknown error'}`);
+    }
+  };
 
   const handleClearAllLeads = async () => {
     if (!isAdmin) {
@@ -374,19 +410,114 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           {scoped.length ? 'No leads match these filters. Clear the search or pick another stage.' : 'No leads yet. Add your first lead to start the pipeline.'}
           <br /><button className="btn primary" onClick={() => openLead(null)}>+ Add lead</button>
         </div></div>
-      ) : view === 'table' ? (
+      ) : (
         <>
-          <div className="table-wrap leads">
-            <table>
-              <thead><tr>
-                <th>First Name</th><th>Last Name</th><th>Designation</th><th>Contact No</th>
-                <th>Email</th><th>Company</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
-                <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
-                {isAdmin && <th style={{ textAlign: 'center', width: 70 }}>Action</th>}
-              </tr></thead>
-              <tbody>
-                {filtered.map(l => (
-                  <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
+          {/* Admin Multi-Select Bulk Action Bar */}
+          {isAdmin && selectedLeadIds.size > 0 && (
+            <div style={{
+              background: '#FEF2F2',
+              border: '1.5px solid #FCA5A5',
+              borderRadius: 12,
+              padding: '12px 18px',
+              marginBottom: 16,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 12,
+              boxShadow: '0 4px 6px -1px rgba(220, 38, 38, 0.08)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 20 }}>🗑️</span>
+                <div>
+                  <div style={{ fontWeight: 800, color: '#991B1B', fontSize: 14 }}>
+                    {selectedLeadIds.size} {selectedLeadIds.size === 1 ? 'lead' : 'leads'} selected
+                  </div>
+                  <div style={{ fontSize: 11, color: '#7F1D1D' }}>
+                    Multi-select delete: Delete all selected leads together with one click.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ background: '#FFFFFF', borderColor: '#CBD5E1', fontSize: 12, fontWeight: 600 }}
+                  onClick={() => setSelectedLeadIds(new Set())}
+                >
+                  Deselect All
+                </button>
+                <button
+                  type="button"
+                  className="btn danger"
+                  style={{
+                    background: '#DC2626',
+                    color: '#FFFFFF',
+                    fontWeight: 800,
+                    fontSize: 12,
+                    padding: '8px 16px',
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                  onClick={handleBulkDelete}
+                >
+                  🗑️ Delete {selectedLeadIds.size} Selected {selectedLeadIds.size === 1 ? 'Lead' : 'Leads'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {view === 'table' ? (
+            <>
+              <div className="table-wrap leads">
+              <table>
+                <thead><tr>
+                  {isAdmin && (
+                    <th style={{ width: 38, textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={filtered.length > 0 && selectedLeadIds.size === filtered.length}
+                        onChange={e => {
+                          if (e.target.checked) {
+                            setSelectedLeadIds(new Set(filtered.map(l => l.id)));
+                          } else {
+                            setSelectedLeadIds(new Set());
+                          }
+                        }}
+                        aria-label="Select/Deselect all visible leads"
+                        title="Select / Deselect all visible leads"
+                        style={{ cursor: 'pointer', transform: 'scale(1.15)' }}
+                      />
+                    </th>
+                  )}
+                  <th>First Name</th><th>Last Name</th><th>Designation</th><th>Contact No</th>
+                  <th>Email</th><th>Company</th><th>Brand</th><th>Ownership</th><th>Lead Date</th><th>Lead Source</th><th>Lead Stage</th>
+                  <th>Date of Connect</th><th>Comments</th><th>Follow-up 2 Date</th><th>Comments</th><th>Lead Status</th>
+                  {isAdmin && <th style={{ textAlign: 'center', width: 70 }}>Action</th>}
+                </tr></thead>
+                <tbody>
+                  {filtered.map(l => (
+                    <tr key={l.id} tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }} style={selectedLeadIds.has(l.id) ? { background: '#FEF2F2' } : {}}>
+                      {isAdmin && (
+                        <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedLeadIds.has(l.id)}
+                            onChange={e => {
+                              e.stopPropagation();
+                              setSelectedLeadIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(l.id)) next.delete(l.id);
+                                else next.add(l.id);
+                                return next;
+                              });
+                            }}
+                            aria-label={`Select lead ${l.email}`}
+                            style={{ cursor: 'pointer', transform: 'scale(1.15)' }}
+                          />
+                        </td>
+                      )}
                     <td>{l.first_name || '—'}</td>
                     <td>{l.last_name || '—'}</td>
                     <td>{l.designation ? <span className="role-tag" style={{ background: '#F1F5F9', color: '#334155', fontSize: 11, padding: '2px 8px', borderRadius: 6, fontWeight: 600 }}>{l.designation}</span> : '—'}</td>
@@ -493,7 +624,27 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
             {filtered.map(l => (
               <button key={l.id} className="card" onClick={() => openLead(l)}>
                 <div className="card-top">
-                  <div><h3>{displayCompany(l)}</h3><div className="em">{l.email} ({l.brand})</div></div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {isAdmin && (
+                      <span onClick={e => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedLeadIds.has(l.id)}
+                          onChange={e => {
+                            e.stopPropagation();
+                            setSelectedLeadIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(l.id)) next.delete(l.id);
+                              else next.add(l.id);
+                              return next;
+                            });
+                          }}
+                          style={{ cursor: 'pointer', transform: 'scale(1.15)' }}
+                        />
+                      </span>
+                    )}
+                    <div><h3>{displayCompany(l)}</h3><div className="em">{l.email} ({l.brand})</div></div>
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <StatusPill status={l.lead_status} />
                     {isAdmin && (
@@ -544,9 +695,29 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           {filtered.map(l => (
             <div key={l.id} className="grid-card" tabIndex={0} onClick={() => openLead(l)} onKeyDown={e => { if (e.key === 'Enter') openLead(l); }}>
               <div className="gc-head">
-                <div>
-                  <h3 className="gc-company">{displayCompany(l)}</h3>
-                  <span className="gc-brand-tag">{l.brand}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {isAdmin && (
+                    <span onClick={e => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedLeadIds.has(l.id)}
+                        onChange={e => {
+                          e.stopPropagation();
+                          setSelectedLeadIds(prev => {
+                            const next = new Set(prev);
+                            if (next.has(l.id)) next.delete(l.id);
+                            else next.add(l.id);
+                            return next;
+                          });
+                        }}
+                        style={{ cursor: 'pointer', transform: 'scale(1.15)' }}
+                      />
+                    </span>
+                  )}
+                  <div>
+                    <h3 className="gc-company">{displayCompany(l)}</h3>
+                    <span className="gc-brand-tag">{l.brand}</span>
+                  </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <StatusPill status={l.lead_status} />
@@ -602,6 +773,8 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           ))}
         </div>
       )}
+    </>
+  )}
 
       <LeadEditor
         open={editor.open}
