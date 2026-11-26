@@ -69,16 +69,40 @@ export function stageColor(stage: string): string {
   return STAGES.find(s => s.key === norm)?.color ?? 'var(--muted)';
 }
 
-export function isOverdue(l: Lead): boolean {
-  const normStatus = normalizeStatusValue(l.lead_status);
-  const hasFollowupComments = !!(l.followup2_comments && l.followup2_comments.trim());
-  return (
-    !!l.followup2_date &&
-    l.followup2_date < today() &&
-    !hasFollowupComments &&
-    !['Opportunity', 'Postponed', 'Junk Lead'].includes(normStatus)
-  );
+export function addDays(dateStr: string, days: number): string {
+  if (!dateStr) return '';
+  const clean = dateStr.slice(0, 10);
+  const [y, m, d] = clean.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const ry = dt.getFullYear();
+  const rm = String(dt.getMonth() + 1).padStart(2, '0');
+  const rd = String(dt.getDate()).padStart(2, '0');
+  return `${ry}-${rm}-${rd}`;
 }
+
+export function isPendingFollowup(l: Lead): boolean {
+  const normStatus = normalizeStatusValue(l.lead_status);
+  if (['Opportunity', 'Postponed', 'Junk Lead'].includes(normStatus)) return false;
+
+  // Agar follow-up le liya gaya hai (notes/comments likh diye hain), toh pending se nikal jayega
+  const hasFollowup2Taken = !!(l.followup2_comments && l.followup2_comments.trim());
+  if (hasFollowup2Taken) return false;
+
+  const t = today();
+  const firstConnect = l.connect_date || (l as any).date_of_connect;
+  const oneWeekAfterConnect = firstConnect ? addDays(firstConnect, 7) : null;
+
+  // 1. Follow 1 (connect_date) ke 1 week (7 days) baad follow-up pending me chala jaye
+  const isOneWeekAfterFollow1 = !!oneWeekAfterConnect && oneWeekAfterConnect <= t;
+
+  // 2. Agar specific follow-up 2 date set ki gayi ho aur wo date aa chuki ho ya nikal chuki ho
+  const isFollowup2DateDue = !!l.followup2_date && l.followup2_date <= t;
+
+  return isOneWeekAfterFollow1 || isFollowup2DateDue;
+}
+
+export const isOverdue = isPendingFollowup;
 
 export function isAttendedLead(l: Lead): boolean {
   const normStatus = normalizeStatusValue(l.lead_status);

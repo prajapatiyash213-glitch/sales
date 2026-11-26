@@ -2,7 +2,7 @@
 import { useMemo, useState, type DragEvent } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BRANDS, SOURCES, STAGES, STATUSES } from '@/lib/constants';
-import { downloadLeadsCsv, displayCompany, fmtDate, formatMemberName, initials, isAttendedLead, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
+import { downloadLeadsCsv, displayCompany, fmtDate, formatMemberName, initials, isAttendedLead, isPendingFollowup, isOverdue, normalizeStageValue, normalizeStatusValue, stageColor, today } from '@/lib/format';
 import { isValidContactNo } from '@/lib/metaHelper';
 import type { Lead, Profile } from '@/lib/types';
 import LeadEditor from './LeadEditor';
@@ -56,7 +56,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
   const [source, setSource] = useState('all');
   const [status, setStatus] = useState(initialStatus ?? 'all');
   const [stage, setStage] = useState<string | null>(null);
-  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [pendingOnly, setPendingOnly] = useState(false);
   const [attendedOnly, setAttendedOnly] = useState(initialAttendedOnly ?? false);
   const [editor, setEditor] = useState<{ open: boolean; lead: Lead | null }>({ open: false, lead: null });
   const [importOpen, setImportOpen] = useState(false);
@@ -166,7 +166,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
     source !== 'all' ||
     status !== 'all' ||
     stage !== null ||
-    overdueOnly ||
+    pendingOnly ||
     attendedOnly;
 
   const handleResetFilters = () => {
@@ -178,7 +178,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
     setSource('all');
     setStatus('all');
     setStage(null);
-    setOverdueOnly(false);
+    setPendingOnly(false);
     setAttendedOnly(false);
   };
 
@@ -203,7 +203,7 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         (designationFilter === 'all' || lDesignation.toLowerCase() === designationFilter.toLowerCase()) &&
         (source === 'all' || l.lead_source === source) &&
         (status === 'all' || normalizeStatusValue(l.lead_status) === status) &&
-        (!overdueOnly || isOverdue(l)) &&
+        (!pendingOnly || isPendingFollowup(l)) &&
         (!needle || [
           l.first_name,
           l.last_name,
@@ -218,10 +218,10 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         ].filter(Boolean).join(' ').toLowerCase().includes(needle))
       );
     });
-  }, [scoped, stage, brandFilter, companyFilter, designationFilter, source, status, overdueOnly, attendedOnly, q, people, me]);
+  }, [scoped, stage, brandFilter, companyFilter, designationFilter, source, status, pendingOnly, attendedOnly, q, people, me]);
 
   const attendedCount = scoped.filter(isAttendedLead).length;
-  const overdueCount = scoped.filter(isOverdue).length;
+  const pendingCount = scoped.filter(isPendingFollowup).length;
   const inProgressCount = scoped.filter(l => ['Qualified', 'Opportunity', 'Pilot/POC', 'Proposal', 'Value Negotiation'].includes(normalizeStageValue(l.lead_stage))).length;
   const wonCount = scoped.filter(l => ['Closed Won', 'Client'].includes(normalizeStageValue(l.lead_stage))).length;
   const activeCount = scoped.filter(l => !['Closed Lost'].includes(normalizeStageValue(l.lead_stage)) && !['Junk Lead', 'Postponed'].includes(normalizeStatusValue(l.lead_status))).length;
@@ -261,11 +261,11 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
         </div>
         <div className="mcard mcard-orange">
           <div className="mcard-top">
-            <span className="mcard-tag">FOLLOW-UPS OVERDUE</span>
-            <span className="mcard-badge">Alerts</span>
+            <span className="mcard-tag">FOLLOW-UPS PENDING</span>
+            <span className="mcard-badge">Action Required</span>
           </div>
-          <div className="mcard-val">{overdueCount}</div>
-          <div className="mcard-sub">Action Required</div>
+          <div className="mcard-val">{pendingCount}</div>
+          <div className="mcard-sub">Follow-up Due</div>
         </div>
       </div>
 
@@ -331,8 +331,13 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
           <option value="all">All statuses</option>
           {STATUSES.map(s => <option key={s}>{s}</option>)}
         </select>
-        <button className={`btn ${overdueOnly ? 'on-danger' : ''}`} onClick={() => setOverdueOnly(v => !v)} aria-pressed={overdueOnly}>
-          Overdue follow-ups ({overdueCount})
+        <button
+          className={`btn ${pendingOnly ? 'on-danger' : ''}`}
+          onClick={() => setPendingOnly(v => !v)}
+          aria-pressed={pendingOnly}
+          style={pendingOnly ? { background: '#EA580C', color: '#FFFFFF', borderColor: '#C2410C', fontWeight: 700 } : {}}
+        >
+          Pending follow-ups ({pendingCount})
         </button>
         <button
           type="button"
@@ -901,7 +906,12 @@ export default function Workspace({ leads, loading, error, reload, me, people, i
 }
 
 function FollowUp({ l }: { l: Lead }) {
-  if (!l.followup2_date) return <>—</>;
-  const od = isOverdue(l);
-  return <span className={od ? 'overdue' : ''}>{fmtDate(l.followup2_date)}{od ? ' (overdue)' : ''}</span>;
+  const isPending = isPendingFollowup(l);
+  if (!l.followup2_date) {
+    if (isPending) {
+      return <span className="overdue" style={{ color: '#EA580C', fontWeight: 700 }}>Pending</span>;
+    }
+    return <>—</>;
+  }
+  return <span className={isPending ? 'overdue' : ''}>{fmtDate(l.followup2_date)}{isPending ? ' (pending)' : ''}</span>;
 }
