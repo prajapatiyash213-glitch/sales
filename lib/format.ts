@@ -71,7 +71,13 @@ export function stageColor(stage: string): string {
 
 export function isOverdue(l: Lead): boolean {
   const normStatus = normalizeStatusValue(l.lead_status);
-  return !!l.followup2_date && l.followup2_date < today() && !['Opportunity', 'Postponed', 'Junk Lead'].includes(normStatus);
+  const hasFollowupComments = !!(l.followup2_comments && l.followup2_comments.trim());
+  return (
+    !!l.followup2_date &&
+    l.followup2_date < today() &&
+    !hasFollowupComments &&
+    !['Opportunity', 'Postponed', 'Junk Lead'].includes(normStatus)
+  );
 }
 
 export function isAttendedLead(l: Lead): boolean {
